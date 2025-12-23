@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
           contact.name,
           contact.company || '',
           contact.email || '',
-          contact.phone || '',
+          contact.phoneNumber || '',
           contact.type,
           contact.Owner?.name || '',
         ])
