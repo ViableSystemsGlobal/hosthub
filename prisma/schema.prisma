@@ -1,0 +1,1008 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AiInsightCache {
+  id         String   @id
+  pageType   String
+  ownerId    String?
+  propertyId String?
+  period     String
+  data       Json
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([pageType, ownerId, propertyId, period])
+  @@index([expiresAt])
+}
+
+model Booking {
+  id                      String            @id
+  propertyId              String
+  ownerId                 String
+  source                  BookingSource
+  externalReservationCode String?
+  guestName               String?
+  checkInDate             DateTime
+  checkOutDate            DateTime
+  nights                  Int
+  baseAmount              Float
+  cleaningFee             Float             @default(0)
+  platformFees            Float             @default(0)
+  taxes                   Float             @default(0)
+  totalPayout             Float
+  currency                Currency
+  fxRateToBase            Float             @default(1.0)
+  totalPayoutInBase       Float
+  status                  BookingStatus     @default(UPCOMING)
+  checkedInAt             DateTime?
+  checkedInById           String?
+  checkInNotes            String?
+  createdById             String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime
+  paymentReceivedBy       PaymentReceivedBy @default(COMPANY)
+  Owner                   Owner             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Property                Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  CheckedInBy             User?             @relation("CheckedInBookings", fields: [checkedInById], references: [id])
+  Task                    Task[]
+  Document                Document[]
+
+  @@index([checkInDate])
+  @@index([ownerId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([checkedInAt])
+}
+
+model Conversation {
+  id            String    @id
+  ownerId       String
+  propertyId    String?
+  createdAt     DateTime  @default(now())
+  lastMessageAt DateTime  @default(now())
+  updatedAt     DateTime
+  Owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Message       Message[]
+
+  @@index([lastMessageAt])
+  @@index([ownerId])
+}
+
+model Expense {
+  id            String          @id
+  propertyId    String
+  ownerId       String
+  date          DateTime
+  category      ExpenseCategory
+  description   String
+  amount        Float
+  currency      Currency
+  fxRateToBase  Float           @default(1.0)
+  amountInBase  Float
+  paidBy        String?
+  linkedTaskId  String?
+  attachmentUrl String?
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  Task          Task?           @relation(fields: [linkedTaskId], references: [id])
+  Owner         Owner           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Property      Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Document      Document[]
+
+  @@index([category])
+  @@index([date])
+  @@index([ownerId])
+  @@index([propertyId])
+}
+
+model Message {
+  id             String       @id
+  conversationId String
+  senderType     String
+  senderId       String
+  content        String
+  attachments    String[]
+  createdAt      DateTime     @default(now())
+  readAt         DateTime?
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id           String              @id
+  ownerId      String
+  type         NotificationType
+  channel      NotificationChannel
+  payload      Json
+  status       NotificationStatus  @default(PENDING)
+  sentAt       DateTime?
+  errorMessage String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime
+  Owner        Owner               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([type])
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String   @db.Text
+  type        String // booking_confirmation, booking_reminder, statement, issue_notification, etc.
+  variables   String[] @default([]) // List of available variables, e.g., ["guestName", "propertyName"]
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([type, isDefault]) // Only one default template per type
+  @@index([type])
+  @@index([isActive])
+}
+
+model SMSTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  message     String   @db.Text
+  type        String // booking_confirmation, booking_reminder, statement, issue_notification, etc.
+  variables   String[] @default([]) // List of available variables, e.g., ["guestName", "propertyName"]
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([type, isDefault]) // Only one default template per type
+  @@index([type])
+  @@index([isActive])
+}
+
+model Owner {
+  id                String             @id
+  name              String
+  email             String
+  phoneNumber       String?
+  whatsappNumber    String?
+  preferredChannel  String?
+  preferredCurrency Currency           @default(GHS)
+  payoutDetails     String?
+  status            String             @default("active")
+  notes             String?
+  aiReportEnabled   Boolean            @default(false)
+  aiReportFrequency String?            // 'daily' | 'weekly' | 'none'
+  aiReportTime      String?            // Time in HH:mm format (e.g., "08:00")
+  aiReportLastSent  DateTime?
+  aiReportNextSend  DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+  Booking           Booking[]
+  Conversation      Conversation[]
+  Expense           Expense[]
+  Notification      Notification[]
+  OwnerTransaction  OwnerTransaction[]
+  OwnerWallet       OwnerWallet?
+  Property          Property[]
+  Statement         Statement[]
+  User              User?
+  Contact           Contact[]
+  Document          Document[]
+  RecurringTask     RecurringTask[]
+
+  @@index([email])
+  @@index([status])
+}
+
+model OwnerTransaction {
+  id          String          @id
+  ownerId     String
+  date        DateTime        @default(now())
+  type        TransactionType
+  amount      Float
+  currency    Currency
+  referenceId String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  Owner       Owner           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Statement   Statement?      @relation(fields: [referenceId], references: [id])
+
+  @@index([date])
+  @@index([ownerId])
+  @@index([referenceId])
+  @@index([type])
+}
+
+model OwnerWallet {
+  id                 String   @id
+  ownerId            String   @unique
+  currentBalance     Float    @default(0)
+  commissionsPayable Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+  Owner              Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model Payout {
+  id          String    @id
+  ownerId     String
+  amount      Float
+  currency    Currency
+  method      String?
+  reference   String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+
+  @@index([ownerId])
+}
+
+model Property {
+  id                              String          @id
+  ownerId                         String
+  name                            String
+  nickname                        String?
+  address                         String?
+  city                            String?
+  country                         String?
+  currency                        Currency        @default(GHS)
+  airbnbListingId                 String?
+  airbnbUrl                       String?
+  bookingComId                    String?
+  instagramHandle                 String?
+  defaultCommissionRate           Float           @default(0.15)
+  cleaningFeeRules                String?
+  status                          String          @default("active")
+  photos                          String[]
+  bedrooms                        Int?
+  bathrooms                       Float?
+  maxGuests                       Int?
+  amenities                       String?
+  description                     String?
+  electricityMeterMinimumBalance  Float?
+  electricityMeterUnit            String?         @default("GHS")
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime
+  managerId                       String?
+  Booking                         Booking[]
+  Expense                         Expense[]
+  User                            User?           @relation(fields: [managerId], references: [id])
+  Owner                           Owner           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Task                            Task[]
+  Issue                           Issue[]
+  Document                        Document[]
+  recurringTasks                  RecurringTask[]
+  CleaningChecklist               CleaningChecklist[]
+  ElectricityMeterReading         ElectricityMeterReading[]
+  ElectricityAlert                ElectricityAlert[]
+  Inventory                        InventoryItem[]
+
+  @@index([managerId])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Statement {
+  id                String             @id
+  ownerId           String
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            StatementStatus    @default(DRAFT)
+  displayCurrency   Currency
+  grossRevenue      Float              @default(0)
+  totalExpenses     Float              @default(0)
+  commissionAmount  Float              @default(0)
+  netToOwner        Float              @default(0)
+  openingBalance    Float              @default(0)
+  closingBalance    Float              @default(0)
+  // Breakdown by payment flow
+  companyRevenue    Float              @default(0)
+  ownerRevenue      Float              @default(0)
+  companyCommission Float              @default(0)
+  ownerCommission   Float              @default(0)
+  generatedAt       DateTime           @default(now())
+  finalizedAt       DateTime?
+  finalizedById     String?
+  pdfUrl            String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+  OwnerTransaction  OwnerTransaction[]
+  Owner             Owner              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  StatementLine     StatementLine[]
+
+  @@index([ownerId])
+  @@index([periodStart, periodEnd])
+  @@index([status])
+}
+
+model StatementLine {
+  id                      String    @id
+  statementId             String
+  type                    String
+  referenceId             String?
+  description             String
+  amount                  Float
+  currency                Currency
+  amountInDisplayCurrency Float
+  createdAt               DateTime  @default(now())
+  Statement               Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([referenceId])
+  @@index([statementId])
+}
+
+model Issue {
+  id                String            @id
+  propertyId        String
+  title             String
+  description       String?
+  status            IssueStatus       @default(OPEN)
+  priority          IssuePriority     @default(MEDIUM)
+  reportedById      String?
+  assignedToUserId  String?
+  assignedContactId String?
+  resolvedAt        DateTime?
+  resolvedById      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime
+  Property          Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  IssueAttachment   IssueAttachment[]
+  IssueComment      IssueComment[]
+  AssignedContact   Contact?          @relation(fields: [assignedContactId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@index([assignedContactId])
+  @@index([createdAt])
+}
+
+model IssueAttachment {
+  id        String   @id
+  issueId   String
+  fileUrl   String
+  fileName  String
+  fileType  String // 'image' or 'video'
+  fileSize  Int? // in bytes
+  createdAt DateTime @default(now())
+  Issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+}
+
+model IssueComment {
+  id        String   @id
+  issueId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Task {
+  id                  String         @id
+  propertyId          String
+  bookingId           String?
+  recurringTaskId     String?
+  type                TaskType
+  title               String
+  description         String?
+  assignedToUserId    String?
+  scheduledAt         DateTime?
+  dueAt               DateTime?
+  status              TaskStatus     @default(PENDING)
+  costEstimate        Float?
+  costActual          Float?
+  createdById         String?
+  completedAt         DateTime?
+  checklistCompletedAt DateTime?
+  isReadyForGuest     Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime
+  Expense             Expense[]
+  Booking             Booking?       @relation(fields: [bookingId], references: [id])
+  Property            Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  RecurringTask       RecurringTask? @relation("RecurringTask", fields: [recurringTaskId], references: [id], onDelete: SetNull)
+  TaskChecklist       TaskChecklist?
+  TaskAttachment      TaskAttachment[]
+
+  @@index([dueAt])
+  @@index([propertyId])
+  @@index([status])
+  @@index([recurringTaskId])
+  @@index([isReadyForGuest])
+}
+
+model Document {
+  id           String       @id
+  propertyId   String?
+  ownerId      String?
+  bookingId    String?
+  expenseId    String?
+  type         DocumentType
+  title        String
+  fileName     String
+  fileUrl      String
+  fileSize     Int? // in bytes
+  mimeType     String?
+  description  String?
+  uploadedById String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime
+  Property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Owner        Owner?       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Booking      Booking?     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  Expense      Expense?     @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  User         User?        @relation(fields: [uploadedById], references: [id])
+
+  @@index([propertyId])
+  @@index([ownerId])
+  @@index([bookingId])
+  @@index([expenseId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model User {
+  id                   String          @id
+  email                String          @unique
+  password             String
+  role                 UserRole        @default(OWNER)
+  ownerId              String?         @unique
+  name                 String?
+  phoneNumber          String?
+  image                String?
+  otpEnabled           Boolean         @default(false)
+  otpCode              String?
+  otpExpiresAt         DateTime?
+  otpMethod            String?         // "EMAIL" or "SMS"
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime
+  Property             Property[]
+  Owner                Owner?          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  IssueComment         IssueComment[]
+  UploadedDocuments    Document[]
+  EmailTemplates       EmailTemplate[]
+  SMSTemplates         SMSTemplate[]
+  CreatedWorkflowRules WorkflowRule[]  @relation("CreatedWorkflowRules")
+  recurringTasks       RecurringTask[]
+  CreatedReports       Report[]        @relation("CreatedReports")
+  CheckedInBookings    Booking[]       @relation("CheckedInBookings")
+  CreatedCleaningChecklists CleaningChecklist[] @relation("CreatedCleaningChecklists")
+  ElectricityReadings  ElectricityMeterReading[]
+  TaskAttachments      TaskAttachment[]
+  LastCheckedInventory InventoryItem[]
+  InventoryHistory      InventoryHistory[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum BookingSource {
+  AIRBNB
+  BOOKING_COM
+  INSTAGRAM
+  DIRECT
+  OTHER
+}
+
+enum BookingStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum Currency {
+  GHS
+  USD
+}
+
+enum ExpenseCategory {
+  CLEANING
+  REPAIRS
+  UTILITIES
+  INTERNET
+  SUPPLIES
+  OTHER
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum NotificationType {
+  STATEMENT_READY
+  PAYOUT_MADE
+  TASK_UPDATE
+  MESSAGE
+  ISSUE_CREATED
+  ISSUE_ASSIGNED
+  ISSUE_STATUS_CHANGED
+  ISSUE_COMMENTED
+  BOOKING_CREATED
+  BOOKING_UPDATED
+  BOOKING_REMINDER
+  BOOKING_CHECKED_IN
+  ELECTRICITY_LOW_BALANCE
+  INVENTORY_LOW_STOCK
+  OTHER
+}
+
+enum PaymentReceivedBy {
+  COMPANY
+  OWNER
+}
+
+enum StatementStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskType {
+  CLEANING
+  REPAIR
+  INSPECTION
+  OTHER
+}
+
+enum TransactionType {
+  STATEMENT_NET
+  PAYOUT
+  COMMISSION_PAYMENT
+  MANUAL_ADJUSTMENT
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContactType {
+  MAINTENANCE
+  PLUMBING
+  ELECTRICAL
+  CLEANING
+  HVAC
+  GENERAL
+  OTHER
+}
+
+enum DocumentType {
+  CONTRACT
+  RECEIPT
+  INVOICE
+  CERTIFICATE
+  INSURANCE
+  PHOTO
+  OTHER
+}
+
+model Contact {
+  id          String      @id
+  ownerId     String? // null for company contacts
+  name        String
+  phoneNumber String
+  email       String?
+  type        ContactType @default(GENERAL)
+  company     String?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  Owner       Owner?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Issue       Issue[]
+
+  @@index([ownerId])
+  @@index([type])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE
+  OPERATIONS
+  OWNER
+  MANAGER
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  category  String   @default("general") // general, notifications, sms, email, etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([key])
+}
+
+enum WorkflowTrigger {
+  BOOKING_CREATED
+  BOOKING_UPDATED
+  BOOKING_STATUS_CHANGED
+  BOOKING_CHECKOUT
+  BOOKING_CHECKED_IN
+  TASK_CREATED
+  TASK_COMPLETED
+  TASK_OVERDUE
+  ISSUE_CREATED
+  ISSUE_STATUS_CHANGED
+  ISSUE_PRIORITY_CHANGED
+  EXPENSE_CREATED
+  STATEMENT_FINALIZED
+  SCHEDULED
+}
+
+enum WorkflowAction {
+  CREATE_TASK
+  ASSIGN_TASK
+  SEND_NOTIFICATION
+  UPDATE_STATUS
+  UPDATE_PRIORITY
+  CREATE_REMINDER
+  SEND_EMAIL
+  SEND_SMS
+  SEND_WHATSAPP
+}
+
+enum WorkflowConditionOperator {
+  EQUALS
+  NOT_EQUALS
+  GREATER_THAN
+  LESS_THAN
+  CONTAINS
+  IN
+  NOT_IN
+}
+
+model WorkflowRule {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  trigger     WorkflowTrigger
+  isActive    Boolean         @default(true)
+  priority    Int             @default(0)
+
+  conditions Json?
+  actions    Json
+
+  propertyIds String[] @default([])
+  ownerIds    String[] @default([])
+
+  scheduleCron String?
+
+  executionCount Int       @default(0)
+  lastExecutedAt DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  CreatedBy  User?               @relation("CreatedWorkflowRules", fields: [createdById], references: [id], onDelete: SetNull)
+  Executions WorkflowExecution[]
+
+  @@index([trigger])
+  @@index([isActive])
+  @@index([priority])
+}
+
+model WorkflowExecution {
+  id              String          @id @default(cuid())
+  workflowRuleId  String
+  triggerType     WorkflowTrigger
+  triggerEntityId String?
+  status          String
+  executedAt      DateTime        @default(now())
+  errorMessage    String?
+  executionLog    Json?
+
+  WorkflowRule WorkflowRule @relation(fields: [workflowRuleId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRuleId])
+  @@index([triggerType])
+  @@index([executedAt])
+  @@index([status])
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum RecurrenceDayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model RecurringTask {
+  id               String               @id @default(cuid())
+  propertyId       String?
+  ownerId          String?
+  type             TaskType
+  title            String
+  description      String?
+  assignedToUserId String?
+  frequency        RecurrenceFrequency
+  interval         Int                  @default(1)
+  dayOfWeek        RecurrenceDayOfWeek?
+  dayOfMonth       Int?
+  startDate        DateTime
+  endDate          DateTime?
+  nextRunDate      DateTime
+  isActive         Boolean              @default(true)
+  costEstimate     Float?
+  createdById      String?
+  lastGeneratedAt  DateTime?
+  totalGenerated   Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  Property       Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Owner          Owner?    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  CreatedBy      User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  GeneratedTasks Task[]    @relation("RecurringTask")
+
+  @@index([propertyId])
+  @@index([ownerId])
+  @@index([isActive])
+  @@index([nextRunDate])
+  @@index([frequency])
+}
+
+enum ReportType {
+  BOOKINGS
+  REVENUE
+  EXPENSES
+  OCCUPANCY
+  PERFORMANCE
+  COMPARATIVE
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+}
+
+enum ReportSchedule {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+model Report {
+  id              String         @id @default(cuid())
+  name            String
+  description     String?
+  type            ReportType
+  format          ReportFormat   @default(EXCEL)
+  schedule        ReportSchedule @default(NONE)
+  scheduleDay     Int? // Day of week (0-6) or day of month (1-31)
+  scheduleTime    String? // Time in HH:mm format
+  lastGeneratedAt DateTime?
+  nextRunAt       DateTime?
+  isActive        Boolean        @default(true)
+
+  // Report configuration (JSON)
+  filters     Json? // Date range, property/owner filters, status filters, etc.
+  fields      Json? // Selected fields/columns to include
+  grouping    Json? // Group by property, owner, month, etc.
+  sorting     Json? // Sort order
+  comparisons Json? // For comparative reports
+
+  // Recipients
+  emailRecipients String[] @default([])
+
+  // Metadata
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  CreatedBy User? @relation("CreatedReports", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([isActive])
+  @@index([nextRunAt])
+  @@index([createdById])
+}
+
+// Cleaning Checklist Models
+model CleaningChecklist {
+  id          String   @id @default(cuid())
+  propertyId  String?  // null for global templates
+  name        String
+  items       Json     // Array of {id, text, required}
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  CreatedBy   User?    @relation("CreatedCleaningChecklists", fields: [createdById], references: [id], onDelete: SetNull)
+  TaskChecklists TaskChecklist[]
+
+  @@index([propertyId])
+  @@index([isDefault])
+  @@index([isActive])
+}
+
+model TaskChecklist {
+  id           String   @id @default(cuid())
+  taskId       String   @unique
+  checklistId  String
+  items        Json     // Array of {id, text, completed, completedAt, completedById}
+  completedAt  DateTime?
+  completedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  Task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  Checklist    CleaningChecklist @relation(fields: [checklistId], references: [id])
+
+  @@index([taskId])
+  @@index([checklistId])
+}
+
+model TaskAttachment {
+  id          String   @id @default(cuid())
+  taskId      String
+  fileUrl     String
+  fileName    String
+  fileType    String   // 'image' or 'video'
+  fileSize    Int?     // in bytes
+  uploadedById String?
+  createdAt   DateTime @default(now())
+  Task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  UploadedBy  User?    @relation(fields: [uploadedById], references: [id])
+
+  @@index([taskId])
+  @@index([createdAt])
+}
+
+// Electricity Meter Models
+model ElectricityMeterReading {
+  id          String   @id @default(cuid())
+  propertyId  String
+  balance     Float    // remaining amount
+  readingDate DateTime @default(now())
+  enteredById String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  EnteredBy   User?    @relation(fields: [enteredById], references: [id])
+  Alerts      ElectricityAlert[]
+
+  @@index([propertyId])
+  @@index([readingDate])
+}
+
+model ElectricityAlert {
+  id              String   @id @default(cuid())
+  propertyId      String
+  readingId       String
+  thresholdAmount Float
+  currentBalance  Float
+  alertSentAt     DateTime @default(now())
+  alertSentTo     String[] // array of user IDs
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  Property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  Reading         ElectricityMeterReading @relation(fields: [readingId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([resolvedAt])
+  @@index([alertSentAt])
+}
+
+enum InventoryType {
+  STATIONARY
+  CONSUMABLE
+}
+
+enum InventoryStatus {
+  PRESENT
+  MISSING
+  DAMAGED
+  NEEDS_REPAIR
+}
+
+model InventoryItem {
+  id              String          @id @default(cuid())
+  propertyId      String
+  name            String
+  type            InventoryType
+  description     String?
+  
+  // For consumable items
+  quantity        Float?          // Current quantity
+  minimumQuantity Float?          // Alert threshold
+  unit            String?         // e.g., "pieces", "bottles", "rolls"
+  
+  // For stationary items
+  status          InventoryStatus @default(PRESENT)
+  photos          String[]        // Array of photo URLs for stationary items
+  
+  // Common fields
+  notes           String?
+  lastCheckedAt   DateTime?
+  lastCheckedById String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  Property        Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  LastCheckedBy   User?           @relation(fields: [lastCheckedById], references: [id], onDelete: SetNull)
+  History         InventoryHistory[]
+  
+  @@index([propertyId])
+  @@index([type])
+  @@index([status])
+}
+
+model InventoryHistory {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  previousQuantity Float?
+  newQuantity     Float?
+  changeType      String        // 'adjustment', 'restocked', 'consumed'
+  notes           String?
+  changedById     String?
+  createdAt       DateTime      @default(now())
+  
+  InventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  ChangedBy       User?         @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  
+  @@index([inventoryItemId])
+  @@index([createdAt])
+}

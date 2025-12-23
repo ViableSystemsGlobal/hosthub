@@ -1,0 +1,109 @@
+const CACHE_VERSION = 'v4';
+const CACHE_NAME = `hosthub-${CACHE_VERSION}`;
+// Keep pre-cache minimal and non-HTML to avoid stale UI shells.
+const urlsToCache = [];
+
+// Install event - cache key routes (currently none to avoid stale shells)
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache))
+  );
+  self.skipWaiting();
+});
+
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      )
+    )
+  );
+  return self.clients.claim();
+});
+
+// Fetch event - prefer network for navigation to avoid stale shells
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  let url;
+  try {
+    url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) {
+      return;
+    }
+  } catch (e) {
+    return;
+  }
+
+  // Let Next.js handle its own assets and HMR chunks to avoid stale bundle errors.
+  if (url.pathname.startsWith('/_next/')) {
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // Always try the network first for navigation/page requests to keep UI fresh.
+  // Do not cache HTML responses to avoid serving stale UI.
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  const isStaticAsset =
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css');
+
+  // Network-first for JS/CSS and Next static assets to avoid stale UI shells.
+  if (isStaticAsset) {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        } catch (err) {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          throw err;
+        }
+      })()
+    );
+    return;
+  }
+
+  // Cache-first for other GET requests (assets like images/fonts)
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) {
+        return cached;
+      }
+
+      return fetch(event.request).then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      });
+    })
+  );
+});

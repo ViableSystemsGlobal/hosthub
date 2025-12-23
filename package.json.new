@@ -1,0 +1,14 @@
+{
+  "name": "hosthub",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "rm -rf .next .turbo node_modules/.cache && next dev",
+    "dev:clean": "rm -rf .next .turbo node_modules/.cache && next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate"
+  },

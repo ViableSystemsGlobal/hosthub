@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hosthub-db
+    environment:
+      POSTGRES_USER: hosthub
+      POSTGRES_PASSWORD: hosthub123
+      POSTGRES_DB: hosthub
+    ports:
+      - "5433:5432"
+    volumes:
+      - hosthub_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  hosthub_postgres_data:
+

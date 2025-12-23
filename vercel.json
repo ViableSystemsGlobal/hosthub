@@ -1,0 +1,21 @@
+{
+  "crons": [
+    {
+      "path": "/api/reminders/run",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/recurring-tasks/generate",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/reports/execute",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/ai-reports/execute",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+
