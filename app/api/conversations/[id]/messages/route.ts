@@ -118,6 +118,7 @@ export async function POST(
     
     const message = await prisma.message.create({
       data: {
+        id: crypto.randomUUID(),
         conversationId: id,
         senderType,
         senderId: user.id,
