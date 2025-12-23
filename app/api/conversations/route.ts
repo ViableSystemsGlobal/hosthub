@@ -79,9 +79,11 @@ export async function POST(request: NextRequest) {
 
     const conversation = await prisma.conversation.create({
       data: {
+        id: crypto.randomUUID(),
         ownerId,
         propertyId,
         lastMessageAt: new Date(),
+        updatedAt: new Date(),
       },
     })
 
