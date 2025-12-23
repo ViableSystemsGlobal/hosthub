@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
         total: rows.length,
         valid: validBookings.length,
         invalid: invalidBookings.length,
-        duplicates: duplicates.length,
+        duplicateCount: duplicates.length,
         toImport: toImport.length,
         invalidBookings,
         duplicates: duplicates.map(b => ({
