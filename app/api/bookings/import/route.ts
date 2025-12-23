@@ -401,7 +401,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       imported: created.length,
-      failed: failed.length,
+      failedCount: failed.length,
       skipped: duplicates.length,
       invalid: invalidBookings.length,
       total: rows.length,
