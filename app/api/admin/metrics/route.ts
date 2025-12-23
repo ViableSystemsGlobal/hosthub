@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
       if (property) {
         const commissionRate = property.defaultCommissionRate || 0.15
         const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-        const grossInGHS = convertCurrency(
+        const grossInGHS = await convertCurrency(
           grossBookingAmount,
           booking.currency,
           'GHS'
