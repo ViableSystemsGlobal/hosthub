@@ -26,11 +26,13 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await executeOwnerAIReports()
+    const { success: successCount, ...restResult } = result
 
     return NextResponse.json({
       success: true,
-      ...result,
-      message: `Executed ${result.executed} AI reports: ${result.success} succeeded, ${result.failed} failed`,
+      ...restResult,
+      successCount,
+      message: `Executed ${result.executed} AI reports: ${successCount} succeeded, ${result.failed} failed`,
       timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
@@ -53,11 +55,13 @@ export async function POST(request: NextRequest) {
 
     // For manual testing, send to all enabled owners (ignore nextSend)
     const result = await executeOwnerAIReportsForTesting()
+    const { success: successCount, ...restResult } = result
 
     return NextResponse.json({
       success: true,
-      ...result,
-      message: `Executed ${result.executed} AI reports: ${result.success} succeeded, ${result.failed} failed`,
+      ...restResult,
+      successCount,
+      message: `Executed ${result.executed} AI reports: ${successCount} succeeded, ${result.failed} failed`,
       timestamp: new Date().toISOString(),
     })
   } catch (error: any) {
