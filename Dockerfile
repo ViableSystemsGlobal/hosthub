@@ -1,5 +1,5 @@
-# Use Node.js 22.12+ (LTS) as base image
-FROM node:22.12-alpine AS base
+# Use Node.js 22.12.0 (exact version required by Prisma 7.1.0)
+FROM node:22.12.0-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
