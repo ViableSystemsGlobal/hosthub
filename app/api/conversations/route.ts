@@ -92,10 +92,12 @@ export async function POST(request: NextRequest) {
       const senderType = user.role === 'OWNER' ? 'owner' : (user.role === 'MANAGER' ? 'manager' : 'admin')
       await prisma.message.create({
         data: {
+          id: crypto.randomUUID(),
           conversationId: conversation.id,
           senderType,
           senderId: user.id,
           content: initialMessage,
+          attachments: [],
         },
       })
     }
