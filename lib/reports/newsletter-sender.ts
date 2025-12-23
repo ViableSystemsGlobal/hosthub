@@ -77,11 +77,6 @@ export async function sendNewsletterReport(
     })
 
   // Update report with last generated timestamp
-  // @ts-ignore
-  const reportModel = (prisma as any).report
-  if (!reportModel) {
-    throw new Error('Report model not available. Please restart the server.')
-  }
   await reportModel.update({
     where: { id: reportId },
     data: {
@@ -146,12 +141,6 @@ export async function executeScheduledReports(): Promise<{
       // Calculate next run time
       const nextRunAt = calculateNextRunTime(report.schedule, report.scheduleDay, report.scheduleTime)
 
-      // @ts-ignore
-      const reportModel = (prisma as any).report
-      if (!reportModel) {
-        console.error('Report model not available')
-        continue
-      }
       await reportModel.update({
         where: { id: report.id },
         data: {

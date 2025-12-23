@@ -60,10 +60,11 @@ export async function PATCH(
       platformFees,
       taxes,
       currency,
-      fxRateToBase,
+      fxRateToBase: inputFxRateToBase,
       paymentReceivedBy,
       status,
     } = body
+    let fxRateToBase = inputFxRateToBase
 
     // Get existing booking to check for changes
     const existingBooking = await prisma.booking.findUnique({
