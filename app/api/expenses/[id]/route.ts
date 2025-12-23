@@ -52,7 +52,7 @@ export async function PATCH(
     } = body
 
     const fxRate = 1.0
-    const amountInBase = convertCurrency(amount, currency as Currency)
+    const amountInBase = await convertCurrency(amount, currency as Currency)
 
     const expense = await prisma.expense.update({
       where: { id },
