@@ -3,7 +3,7 @@
 ## Prerequisites
 
 1. **EasyPanel installed** on your Hostinger VPS
-2. **Node.js 18+** installed (check with `node -v`)
+2. **Node.js 20.9+** installed (check with `node -v`) - **Required for Prisma 7.1.0 and Next.js 16**
 3. **PostgreSQL database** set up (can be on same server or remote)
 4. **Domain name** pointing to your VPS (optional but recommended)
 
@@ -80,11 +80,13 @@ TWILIO_AUTH_TOKEN="your-token"
 ### 2.2 Configure Application in EasyPanel
 
 1. **Application Type:** Node.js
-2. **Node Version:** 18.x or higher
-3. **Build Command:** `npm install && npx prisma generate && npm run build`
+2. **Node Version:** 20.x or higher (**Required** - Prisma 7.1.0 requires Node 20.19+, Next.js 16 requires Node 20.9+)
+3. **Build Command:** `npm ci --legacy-peer-deps && npx prisma generate && npm run build`
 4. **Start Command:** `npm start`
 5. **Port:** Auto-detect (usually 3000)
 6. **Working Directory:** `/` (root of your app)
+
+**Note:** The `nixpacks.toml` file in the repository will automatically configure Node.js 20 for EasyPanel/Nixpacks builds.
 
 ### 2.3 Set Environment Variables
 
