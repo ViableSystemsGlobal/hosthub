@@ -71,15 +71,15 @@ export async function GET(request: NextRequest) {
 
     // Calculate metrics
     let monthRevenue = 0
-    monthBookings.forEach((booking) => {
+    for (const booking of monthBookings) {
       const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-      const grossInGHS = convertCurrency(
+      const grossInGHS = await convertCurrency(
         grossBookingAmount,
         booking.currency,
         'GHS'
       )
       monthRevenue += grossInGHS
-    })
+    }
 
     // Get expenses for assigned properties this month
     const monthExpenses = propertyIds.length > 0 ? await prisma.expense.findMany({
