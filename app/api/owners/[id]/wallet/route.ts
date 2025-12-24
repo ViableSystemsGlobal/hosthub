@@ -26,9 +26,11 @@ export async function GET(
     if (!wallet) {
       wallet = await prisma.ownerWallet.create({
         data: {
+          id: crypto.randomUUID(),
           ownerId: id,
           currentBalance: 0,
           commissionsPayable: 0,
+          updatedAt: new Date(),
         },
       })
     }
