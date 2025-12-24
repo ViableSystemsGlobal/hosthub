@@ -18,11 +18,13 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await executeScheduledReports()
+    const { success: successCount, ...restResult } = result
 
     return NextResponse.json({
       success: true,
-      ...result,
-      message: `Executed ${result.executed} reports: ${result.success} succeeded, ${result.failed} failed`,
+      ...restResult,
+      successCount,
+      message: `Executed ${result.executed} reports: ${successCount} succeeded, ${result.failed} failed`,
     })
   } catch (error: any) {
     console.error('Failed to execute scheduled reports:', error)
@@ -42,11 +44,13 @@ export async function POST(request: NextRequest) {
     await requireAdmin(request)
 
     const result = await executeScheduledReports()
+    const { success: successCount, ...restResult } = result
 
     return NextResponse.json({
       success: true,
-      ...result,
-      message: `Executed ${result.executed} reports: ${result.success} succeeded, ${result.failed} failed`,
+      ...restResult,
+      successCount,
+      message: `Executed ${result.executed} reports: ${successCount} succeeded, ${result.failed} failed`,
     })
   } catch (error: any) {
     if (error.status === 401 || error.status === 403) {
