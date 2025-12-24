@@ -205,7 +205,7 @@ export function PropertyForm({ propertyId, initialData }: PropertyFormProps) {
   const removePhoto = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      photos: prev.photos.filter((_, i) => i !== index),
+      photos: prev.photos.filter((_: any, i: number) => i !== index),
     }))
   }
 
