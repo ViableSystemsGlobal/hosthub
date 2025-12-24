@@ -240,7 +240,7 @@ export function AdminTasksPage() {
   const totalTasks = allTasks.length
   const completedTasks = allTasks.filter(t => t.status === TaskStatus.COMPLETED).length
   const inProgressTasks = allTasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length
-  const pendingTasks = allTasks.filter(t => t.status === TaskStatus.PENDING || t.status === TaskStatus.SCHEDULED).length
+  const pendingTasks = allTasks.filter(t => t.status === TaskStatus.PENDING).length
 
   return (
     <div className="space-y-6">
