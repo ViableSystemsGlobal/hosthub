@@ -59,26 +59,15 @@ async function main() {
     // Create a sample owner
     owner = await prisma.owner.create({
       data: {
+        id: crypto.randomUUID(),
         name: 'John Doe',
         email: 'owner@example.com',
         phoneNumber: '+233123456789',
         preferredCurrency: Currency.GHS,
         status: 'active',
-        user: {
-          create: {
-            id: 'owner-user-001',
-            email: 'owner@example.com',
-            password: hashedPassword,
-            role: UserRole.OWNER,
-            name: 'John Doe',
-            updatedAt: new Date(),
-          },
-        },
-        wallet: {
-          create: {
-            currentBalance: 0,
-          },
-        },
+        updatedAt: new Date(),
+        // Note: Owner model doesn't have a direct user relation in Prisma 6
+        // User must be created separately
       },
     })
     console.log('Created owner:', owner.name)
