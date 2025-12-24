@@ -1,4 +1,5 @@
-import { pdf } from '@react-pdf/renderer'
+import React from 'react'
+import { renderToBuffer } from '@react-pdf/renderer'
 import { AllReportsPDF } from '@/components/pdf/all-reports-pdf'
 import { ReportPDF } from '@/components/pdf/report-pdf'
 import { format } from 'date-fns'
@@ -52,8 +53,8 @@ export async function exportAllReportsToPDF(
     const dateLabel = `${format(new Date(dateFrom), 'MMM d, yyyy')} - ${format(new Date(dateTo), 'MMM d, yyyy')}`
     const generatedAt = format(new Date(), 'MMM d, yyyy h:mm a')
 
-    // Generate PDF blob
-    const blob = await pdf(
+    // Generate PDF buffer
+    const pdfBuffer = await renderToBuffer(
       React.createElement(AllReportsPDF, {
         reportsByProperty: {},
         dateFrom,
@@ -62,10 +63,11 @@ export async function exportAllReportsToPDF(
         logoUrl: undefined,
         themeColor: '#f97316',
         receipts: [],
-      })
-    ).toBlob()
+      }) as React.ReactElement
+    )
 
     // Create download link
+    const blob = new Blob([pdfBuffer], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
