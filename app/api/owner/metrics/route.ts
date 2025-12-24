@@ -58,26 +58,26 @@ export async function GET(request: NextRequest) {
 
     // Revenue = gross revenue (baseAmount + cleaningFee)
     let monthRevenue = 0
-    monthBookings.forEach((booking) => {
+    for (const booking of monthBookings) {
       const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-      const converted = convertCurrency(
+      const converted = await convertCurrency(
         grossBookingAmount,
         booking.currency,
         currency
       )
       monthRevenue += isNaN(converted) ? 0 : converted
-    })
+    }
 
     let prevMonthRevenue = 0
-    prevMonthBookings.forEach((booking) => {
+    for (const booking of prevMonthBookings) {
       const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-      const converted = convertCurrency(
+      const converted = await convertCurrency(
         grossBookingAmount,
         booking.currency,
         currency
       )
       prevMonthRevenue += isNaN(converted) ? 0 : converted
-    })
+    }
 
     // This month expenses
     const monthExpenses = await prisma.expense.findMany({
@@ -102,24 +102,24 @@ export async function GET(request: NextRequest) {
     })
 
     let monthExpensesTotal = 0
-    monthExpenses.forEach((expense) => {
-      const converted = convertCurrency(
+    for (const expense of monthExpenses) {
+      const converted = await convertCurrency(
         expense.amount || 0,
         expense.currency,
         currency
       )
       monthExpensesTotal += isNaN(converted) ? 0 : converted
-    })
+    }
 
     let prevMonthExpensesTotal = 0
-    prevMonthExpenses.forEach((expense) => {
-      const converted = convertCurrency(
+    for (const expense of prevMonthExpenses) {
+      const converted = await convertCurrency(
         expense.amount || 0,
         expense.currency,
         currency
       )
       prevMonthExpensesTotal += isNaN(converted) ? 0 : converted
-    })
+    }
 
     const monthNet = monthRevenue - monthExpensesTotal
     const prevMonthNet = prevMonthRevenue - prevMonthExpensesTotal
@@ -185,15 +185,15 @@ export async function GET(request: NextRequest) {
       })
 
       let dayRevenue = 0
-      dayBookings.forEach((booking) => {
+      for (const booking of dayBookings) {
         const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-        const converted = convertCurrency(
+        const converted = await convertCurrency(
           grossBookingAmount,
           booking.currency,
           currency
         )
         dayRevenue += isNaN(converted) ? 0 : converted
-      })
+      }
       dailyRevenueData.push(dayRevenue)
     }
 
@@ -214,15 +214,15 @@ export async function GET(request: NextRequest) {
 
         // Revenue = gross revenue (baseAmount + cleaningFee)
         let revenue = 0
-        propertyBookings.forEach((booking) => {
+        for (const booking of propertyBookings) {
           const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-          const converted = convertCurrency(
+          const converted = await convertCurrency(
             grossBookingAmount,
             booking.currency,
             currency
           )
           revenue += isNaN(converted) ? 0 : converted
-        })
+        }
 
             return {
               id: property.id,
