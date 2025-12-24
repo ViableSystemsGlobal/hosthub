@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
           break
       }
       if (data) {
-        const rows = data.rows || data.data || []
+        const rows = data.rows || []
         const headers = data.headers || (rows.length > 0 ? Object.keys(rows[0]) : [])
         results[rt] = {
           title: reportTitles[rt] || rt,
