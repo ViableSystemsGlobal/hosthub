@@ -1,5 +1,5 @@
 import React from 'react'
-import { renderToBuffer } from '@react-pdf/renderer'
+import { pdf, renderToBuffer } from '@react-pdf/renderer'
 import { AllReportsPDF } from '@/components/pdf/all-reports-pdf'
 import { ReportPDF } from '@/components/pdf/report-pdf'
 import { format } from 'date-fns'
@@ -113,16 +113,16 @@ export async function exportReportToPDF(
 
     // Generate PDF blob
     const blob = await pdf(
-      <ReportPDF
-        reportType={reportType}
-        data={rows}
-        startDate={dateFrom}
-        endDate={dateTo}
-        filters={{
+      React.createElement(ReportPDF, {
+        reportType,
+        data: rows,
+        startDate: dateFrom,
+        endDate: dateTo,
+        filters: {
           property: propertyName,
           owner: ownerName,
-        }}
-      />
+        },
+      }) as any
     ).toBlob()
 
     // Create download link
