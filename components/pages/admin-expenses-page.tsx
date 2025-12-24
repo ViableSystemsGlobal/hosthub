@@ -53,6 +53,9 @@ export function AdminExpensesPage() {
   const [loading, setLoading] = useState(true)
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set())
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [totalAmount, setTotalAmount] = useState(0)
+  const [currentMonthTotal, setCurrentMonthTotal] = useState(0)
+  const [prevMonthTotal, setPrevMonthTotal] = useState(0)
   const [filters, setFilters] = useState({
     propertyId: '',
     category: '',
@@ -63,6 +66,46 @@ export function AdminExpensesPage() {
   useEffect(() => {
     fetchExpenses()
   }, [])
+
+  useEffect(() => {
+    const calculateMetrics = async () => {
+      const now = new Date()
+      const monthStart = startOfMonth(now)
+      const monthEnd = endOfMonth(now)
+      const prevMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+      const prevMonthEnd = endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+
+      // Calculate total amount
+      let total = 0
+      for (const e of allExpenses) {
+        total += await convertCurrency(e.amount, e.currency, 'GHS')
+      }
+      setTotalAmount(total)
+
+      // Calculate current month total
+      const currentMonthExpenses = allExpenses.filter(e => {
+        const date = new Date(e.date)
+        return date >= monthStart && date <= monthEnd
+      })
+      let currentTotal = 0
+      for (const e of currentMonthExpenses) {
+        currentTotal += await convertCurrency(e.amount, e.currency, 'GHS')
+      }
+      setCurrentMonthTotal(currentTotal)
+
+      // Calculate previous month total
+      const prevMonthExpenses = allExpenses.filter(e => {
+        const date = new Date(e.date)
+        return date >= prevMonthStart && date <= prevMonthEnd
+      })
+      let prevTotal = 0
+      for (const e of prevMonthExpenses) {
+        prevTotal += await convertCurrency(e.amount, e.currency, 'GHS')
+      }
+      setPrevMonthTotal(prevTotal)
+    }
+    calculateMetrics()
+  }, [allExpenses])
 
   const fetchExpenses = async () => {
     try {
@@ -236,28 +279,6 @@ export function AdminExpensesPage() {
 
   // Calculate metrics
   const totalExpenses = allExpenses.length
-  const totalAmount = allExpenses.reduce((sum, e) => {
-    return sum + convertCurrency(e.amount, e.currency, 'GHS')
-  }, 0)
-  const now = new Date()
-  const monthStart = startOfMonth(now)
-  const monthEnd = endOfMonth(now)
-  const currentMonthExpenses = allExpenses.filter(e => {
-    const date = new Date(e.date)
-    return date >= monthStart && date <= monthEnd
-  })
-  const currentMonthTotal = currentMonthExpenses.reduce((sum, e) => {
-    return sum + convertCurrency(e.amount, e.currency, 'GHS')
-  }, 0)
-  const prevMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  const prevMonthEnd = endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  const prevMonthExpenses = allExpenses.filter(e => {
-    const date = new Date(e.date)
-    return date >= prevMonthStart && date <= prevMonthEnd
-  })
-  const prevMonthTotal = prevMonthExpenses.reduce((sum, e) => {
-    return sum + convertCurrency(e.amount, e.currency, 'GHS')
-  }, 0)
 
   return (
     <div className="space-y-6">
