@@ -35,7 +35,7 @@ interface ImportPreview {
 interface ImportResult {
   success: boolean
   imported: number
-  failed: number
+  failedCount: number
   skipped: number
   invalid: number
   total: number
@@ -439,7 +439,7 @@ export function CSVImportDialog({ open, onClose, onSuccess }: CSVImportDialogPro
                   <div className="flex items-center gap-2">
                     <XCircle className="w-5 h-5 text-red-600" />
                     <div>
-                      <div className="text-2xl font-bold text-red-600">{result.failed}</div>
+                      <div className="text-2xl font-bold text-red-600">{result.failedCount}</div>
                       <div className="text-xs text-muted-foreground">Failed</div>
                     </div>
                   </div>
@@ -465,7 +465,7 @@ export function CSVImportDialog({ open, onClose, onSuccess }: CSVImportDialogPro
             </div>
 
             {/* Failed Imports */}
-            {result.failed > 0 && result.failed.length > 0 && (
+            {result.failedCount > 0 && result.failed.length > 0 && (
               <div>
                 <h3 className="font-medium mb-2 text-red-600">Failed Imports</h3>
                 <div className="max-h-40 overflow-y-auto border rounded">
