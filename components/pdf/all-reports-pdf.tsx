@@ -1,3 +1,4 @@
+import React from 'react'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import { format } from 'date-fns'
 
@@ -293,6 +294,102 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
     return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
+  const propertyPages: React.ReactElement[] = properties
+    .filter((propertyData) => {
+      const reportSections = Object.entries(propertyData.reports || {})
+        .filter(([, data]) => data && Array.isArray(data.rows) && data.rows.length > 0)
+      return reportSections.length > 0
+    })
+    .map((propertyData, propIdx) => {
+      const reportSections = Object.entries(propertyData.reports || {})
+        .filter(([, data]) => data && Array.isArray(data.rows) && data.rows.length > 0)
+        .map(([key, data]) => ({
+          key,
+          ...data,
+          headers: normalizeHeaders(data.rows, data.headers),
+        }))
+
+      return (
+        <Page key={propertyData.propertyId} size="A4" orientation="landscape" style={styles.page} wrap>
+          {/* Property Header */}
+          <View style={styles.propertyHeader}>
+            <Text style={styles.propertyTitle}>{propertyData.propertyName}</Text>
+            {propertyData.propertyImage && (
+              <Image 
+                src={propertyData.propertyImage.startsWith('http') 
+                  ? propertyData.propertyImage 
+                  : propertyData.propertyImage.startsWith('/')
+                  ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${propertyData.propertyImage}`
+                  : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${propertyData.propertyImage}`} 
+                style={styles.propertyImage} 
+              />
+            )}
+          </View>
+
+          {/* All Report Types for This Property */}
+          {reportSections.map((section, idx) => (
+            <View key={section.key + idx} style={styles.section} wrap={false}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+
+              {section.summary && (
+                <View style={styles.summary}>
+                  {Object.entries(section.summary).map(([k, v]) => (
+                    <View key={k} style={styles.summaryRow}>
+                      <Text>{k}</Text>
+                      <Text>{formatValue(v)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {section.headers && section.headers.length > 0 && (() => {
+                const columnWidths = calculateColumnWidths(section.headers, section.rows)
+                return (
+                  <View key={`table-${section.key}`} style={styles.table}>
+                    <View style={styles.tableHeader}>
+                      {section.headers.map((h, i) => (
+                        <View 
+                          key={h + i} 
+                      style={[
+                        styles.tableHeaderCellWrapper,
+                        { width: columnWidths[i] },
+                        i === section.headers!.length - 1 ? { borderRight: 0 } : {}
+                      ]}
+                        >
+                          <Text style={styles.tableHeaderCell} wrap>
+                            {h}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    {section.rows.slice(0, 200).map((row, rIdx) => (
+                      <View key={rIdx} style={styles.tableRow}>
+                        {section.headers!.map((h, cIdx) => (
+                          <View 
+                            key={h + cIdx} 
+                        style={[
+                          styles.tableCellWrapper,
+                          { width: columnWidths[cIdx] },
+                          cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
+                        ]}
+                          >
+                            <Text style={styles.tableCell} wrap>
+                              {formatValue(row[h])}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                  ) as React.ReactElement
+              })()}
+              {(!section.rows || section.rows.length === 0) && <Text>No data</Text>}
+            </View>
+          ))}
+        </Page>
+      )
+    })
+
   return (
     <Document>
       {/* Cover Page */}
@@ -305,100 +402,7 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
         {generatedAt && <Text style={styles.coverSubtitle}>Generated: {generatedAt}</Text>}
       </Page>
       
-      {/* Report Content - Grouped by Property */}
-      {properties
-        .map((propertyData, propIdx) => {
-          const reportSections = Object.entries(propertyData.reports || {})
-            .filter(([, data]) => data && Array.isArray(data.rows) && data.rows.length > 0)
-            .map(([key, data]) => ({
-              key,
-              ...data,
-              headers: normalizeHeaders(data.rows, data.headers),
-            }))
-
-          if (reportSections.length === 0) return null
-
-          return (
-            <Page key={propertyData.propertyId} size="A4" orientation="landscape" style={styles.page} wrap>
-            {/* Property Header */}
-            <View style={styles.propertyHeader}>
-              <Text style={styles.propertyTitle}>{propertyData.propertyName}</Text>
-              {propertyData.propertyImage && (
-                <Image 
-                  src={propertyData.propertyImage.startsWith('http') 
-                    ? propertyData.propertyImage 
-                    : propertyData.propertyImage.startsWith('/')
-                    ? `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${propertyData.propertyImage}`
-                    : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${propertyData.propertyImage}`} 
-                  style={styles.propertyImage} 
-                />
-              )}
-            </View>
-
-            {/* All Report Types for This Property */}
-            {reportSections.map((section, idx) => (
-              <View key={section.key + idx} style={styles.section} wrap={false}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-
-                {section.summary && (
-                  <View style={styles.summary}>
-                    {Object.entries(section.summary).map(([k, v]) => (
-                      <View key={k} style={styles.summaryRow}>
-                        <Text>{k}</Text>
-                        <Text>{formatValue(v)}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {section.headers && section.headers.length > 0 && (() => {
-                  const columnWidths = calculateColumnWidths(section.headers, section.rows)
-                  return (
-                    <View style={styles.table}>
-                      <View style={styles.tableHeader}>
-                        {section.headers.map((h, i) => (
-                          <View 
-                            key={h + i} 
-                        style={[
-                          styles.tableHeaderCellWrapper,
-                          { width: columnWidths[i] },
-                          i === section.headers!.length - 1 ? { borderRight: 0 } : {}
-                        ]}
-                          >
-                            <Text style={styles.tableHeaderCell} wrap>
-                              {h}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                      {section.rows.slice(0, 200).map((row, rIdx) => (
-                        <View key={rIdx} style={styles.tableRow}>
-                          {section.headers!.map((h, cIdx) => (
-                            <View 
-                              key={h + cIdx} 
-                          style={[
-                            styles.tableCellWrapper,
-                            { width: columnWidths[cIdx] },
-                            cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
-                          ]}
-                            >
-                              <Text style={styles.tableCell} wrap>
-                                {formatValue(row[h])}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  )
-                })()}
-                {(!section.rows || section.rows.length === 0) && <Text>No data</Text>}
-              </View>
-            ))}
-          </Page>
-          )
-        })
-        .filter((item): item is JSX.Element => item !== null)}
+      {propertyPages}
       
       {/* Receipts Page - After All Properties */}
       {receipts && receipts.length > 0 ? (
@@ -441,10 +445,7 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
             })}
           </View>
         </Page>
-      ) : (
-        // Debug: Show a page even if no receipts to verify the code is running
-        console.log('No receipts to display in PDF')
-      )}
+      ) : null}
     </Document>
   )
 }

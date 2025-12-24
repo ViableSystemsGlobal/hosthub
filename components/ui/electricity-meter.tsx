@@ -149,6 +149,7 @@ export function ElectricityMeter({
   const isLowBalance =
     latestReading &&
     minimumBalance !== null &&
+    minimumBalance !== undefined &&
     latestReading.balance < minimumBalance
 
   return (
@@ -207,7 +208,7 @@ export function ElectricityMeter({
               <span className="text-muted-foreground">Last Reading</span>
               <span>{format(new Date(latestReading.readingDate), 'MMM dd, yyyy HH:mm')}</span>
             </div>
-            {minimumBalance !== null && (
+            {minimumBalance !== null && minimumBalance !== undefined && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Minimum Threshold</span>
                 <span>{formatCurrency(minimumBalance, currentUnit as any)}</span>

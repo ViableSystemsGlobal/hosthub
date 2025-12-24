@@ -12,7 +12,7 @@ export function PWARegister() {
     if (
       typeof window !== 'undefined' &&
       'serviceWorker' in navigator &&
-      window.workbox !== undefined
+      (window as any).workbox !== undefined
     ) {
       // Workbox is available (if using next-pwa)
       return
