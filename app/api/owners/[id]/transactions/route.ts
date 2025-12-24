@@ -72,8 +72,10 @@ export async function POST(
       where: { ownerId: id },
       update: { currentBalance: newBalance },
       create: {
+        id: crypto.randomUUID(),
         ownerId: id,
         currentBalance: newBalance,
+        updatedAt: new Date(),
       },
     })
 
