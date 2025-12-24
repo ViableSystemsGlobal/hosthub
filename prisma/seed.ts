@@ -228,7 +228,14 @@ async function main() {
     ]
 
     for (const expenseData of expenses) {
-      await prisma.expense.create({ data: expenseData })
+      await prisma.expense.create({ 
+        data: {
+          ...expenseData,
+          id: crypto.randomUUID(),
+          ownerId: owner.id,
+          updatedAt: new Date(),
+        }
+      })
     }
     console.log(`Created ${expenses.length} expenses`)
 
