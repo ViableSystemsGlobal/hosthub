@@ -192,7 +192,7 @@ export function OwnerBookingsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <TableSkeletonLoader columns={7} rows={5} />
+            <TableSkeletonLoader rows={5} />
           ) : filteredBookings.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-400" />
