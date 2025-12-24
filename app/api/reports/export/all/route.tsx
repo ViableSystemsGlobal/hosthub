@@ -114,12 +114,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Transform flat results into reportsByProperty format
+    const reportsByProperty: Record<string, any> = {
+      'all-properties': {
+        propertyId: 'all-properties',
+        propertyName: 'All Properties',
+        reports: results,
+      },
+    }
+
+    // Fetch logo and theme color
+    const logoUrl = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/settings/logo/public`)
+      .then(res => res.ok ? res.json().then((d: any) => d.logoUrl) : null)
+      .catch(() => null)
+    
+    const themeColor = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/settings/theme/public`)
+      .then(res => res.ok ? res.json().then((d: any) => d.themeColor || '#f97316') : '#f97316')
+      .catch(() => '#f97316')
+
     const pdfBuffer = await renderToBuffer(
       <AllReportsPDF
-        reports={results}
+        reportsByProperty={reportsByProperty}
         dateFrom={dateFrom}
         dateTo={dateTo}
         generatedAt={new Date().toISOString()}
+        logoUrl={logoUrl}
+        themeColor={themeColor}
       />
     )
 
