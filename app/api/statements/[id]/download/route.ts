@@ -82,7 +82,7 @@ export async function GET(
 
     // Generate PDF on demand
     const pdfBuffer = await renderToBuffer(
-      <StatementPDF statement={statementForPDF} logoUrl={logoUrl} themeColor={themeColor} />
+      React.createElement(StatementPDF, { statement: statementForPDF, logoUrl, themeColor }) as any
     )
 
     // Return PDF as response

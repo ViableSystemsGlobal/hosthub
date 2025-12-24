@@ -147,7 +147,7 @@ export async function POST(
       }
 
       const pdfBuffer = await renderToBuffer(
-        <StatementPDF statement={statementForPDF} logoUrl={logoUrl} themeColor={themeColor} />
+        React.createElement(StatementPDF, { statement: statementForPDF, logoUrl, themeColor }) as any
       )
 
       return { statement: finalStatement, pdfBuffer }
