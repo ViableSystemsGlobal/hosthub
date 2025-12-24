@@ -168,7 +168,13 @@ async function main() {
     ]
 
     for (const bookingData of bookings) {
-      await prisma.booking.create({ data: bookingData })
+      await prisma.booking.create({ 
+        data: {
+          ...bookingData,
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
+        }
+      })
     }
     console.log(`Created ${bookings.length} bookings`)
 
