@@ -162,7 +162,7 @@ export async function POST(
     }
 
     // Return PDF as response
-    return new NextResponse(result.pdfBuffer, {
+    return new NextResponse(result.pdfBuffer as any, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="statement-${id}.pdf"`,
