@@ -56,6 +56,7 @@ export function AdminExpensesPage() {
   const [totalAmount, setTotalAmount] = useState(0)
   const [currentMonthTotal, setCurrentMonthTotal] = useState(0)
   const [prevMonthTotal, setPrevMonthTotal] = useState(0)
+  const [currentMonthExpenses, setCurrentMonthExpenses] = useState<Expense[]>([])
   const [filters, setFilters] = useState({
     propertyId: '',
     category: '',
@@ -83,12 +84,13 @@ export function AdminExpensesPage() {
       setTotalAmount(total)
 
       // Calculate current month total
-      const currentMonthExpenses = allExpenses.filter(e => {
+      const currentMonthExpensesFiltered = allExpenses.filter(e => {
         const date = new Date(e.date)
         return date >= monthStart && date <= monthEnd
       })
+      setCurrentMonthExpenses(currentMonthExpensesFiltered)
       let currentTotal = 0
-      for (const e of currentMonthExpenses) {
+      for (const e of currentMonthExpensesFiltered) {
         currentTotal += await convertCurrency(e.amount, e.currency, 'GHS')
       }
       setCurrentMonthTotal(currentTotal)
