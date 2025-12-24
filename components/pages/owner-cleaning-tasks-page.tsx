@@ -344,8 +344,8 @@ export function OwnerCleaningTasksPage() {
                   <p className="text-sm font-medium text-gray-500 mb-2">Checklist</p>
                   <CleaningChecklist
                     taskId={selectedTask.id}
-                    checklist={selectedTask.TaskChecklist}
-                    readOnly={true}
+                    propertyId={selectedTask.propertyId}
+                    canEdit={false}
                   />
                 </div>
               )}
