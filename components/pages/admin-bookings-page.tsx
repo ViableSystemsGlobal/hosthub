@@ -58,6 +58,7 @@ export function AdminBookingsPage() {
   const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set())
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [totalRevenue, setTotalRevenue] = useState(0)
   const [filters, setFilters] = useState({
     propertyId: '',
     source: '',
@@ -69,6 +70,22 @@ export function AdminBookingsPage() {
   useEffect(() => {
     fetchBookings()
   }, [])
+
+  useEffect(() => {
+    const calculateRevenue = async () => {
+      if (!Array.isArray(allBookings)) {
+        setTotalRevenue(0)
+        return
+      }
+      let sum = 0
+      for (const b of allBookings.filter(b => b.status === 'COMPLETED')) {
+        const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
+        sum += await convertCurrency(gross, b.currency, 'GHS')
+      }
+      setTotalRevenue(sum)
+    }
+    calculateRevenue()
+  }, [allBookings])
 
   const fetchBookings = async () => {
     try {
@@ -330,12 +347,6 @@ export function AdminBookingsPage() {
   // Calculate metrics from all bookings
   const totalBookings = Array.isArray(allBookings) ? allBookings.length : 0
   const completedBookings = Array.isArray(allBookings) ? allBookings.filter(b => b.status === 'COMPLETED').length : 0
-  const totalRevenue = Array.isArray(allBookings) ? allBookings
-    .filter(b => b.status === 'COMPLETED')
-    .reduce((sum, b) => {
-      const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
-      return sum + convertCurrency(gross, b.currency, 'GHS')
-    }, 0) : 0
   const upcomingBookings = Array.isArray(allBookings) ? allBookings.filter(b => b.status === 'UPCOMING').length : 0
 
   // Calculate previous month for trend
