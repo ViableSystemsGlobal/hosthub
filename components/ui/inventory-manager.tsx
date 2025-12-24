@@ -100,7 +100,16 @@ export function InventoryManager({ propertyId }: InventoryManagerProps) {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false)
   const [photoItem, setPhotoItem] = useState<InventoryItem | null>(null)
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    type: InventoryType
+    description: string
+    quantity: string
+    minimumQuantity: string
+    unit: string
+    status: InventoryStatus
+    notes: string
+  }>({
     name: '',
     type: InventoryType.STATIONARY,
     description: '',

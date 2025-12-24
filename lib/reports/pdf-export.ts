@@ -54,12 +54,15 @@ export async function exportAllReportsToPDF(
 
     // Generate PDF blob
     const blob = await pdf(
-      <AllReportsPDF
-        reports={reports}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        generatedAt={generatedAt}
-      />
+      React.createElement(AllReportsPDF, {
+        reportsByProperty: {},
+        dateFrom,
+        dateTo,
+        generatedAt,
+        logoUrl: undefined,
+        themeColor: '#f97316',
+        receipts: [],
+      })
     ).toBlob()
 
     // Create download link

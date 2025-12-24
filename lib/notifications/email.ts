@@ -60,12 +60,13 @@ export async function sendEmail(
     const nodemailer = await import('nodemailer')
 
     const transporter = nodemailer.default.createTransport({
-      host: smtpHost,
-      port: parseInt(smtpPort),
+      // @ts-ignore - nodemailer types are incorrect for v7
+      host: smtpHost as string,
+      port: parseInt(smtpPort) as number,
       secure: parseInt(smtpPort) === 465, // true for 465, false for other ports
       auth: {
-        user: smtpUser,
-        pass: smtpPassword,
+        user: smtpUser as string,
+        pass: smtpPassword as string,
       },
       // Increase timeouts for Hostinger and other slow SMTP servers
       connectionTimeout: 30000, // 30 seconds
