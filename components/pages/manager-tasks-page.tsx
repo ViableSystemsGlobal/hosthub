@@ -71,7 +71,7 @@ export function ManagerTasksPage() {
   const totalTasks = tasks.length
   const completedTasks = tasks.filter(t => t.status === TaskStatus.COMPLETED).length
   const inProgressTasks = tasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length
-  const pendingTasks = tasks.filter(t => t.status === TaskStatus.PENDING || t.status === TaskStatus.SCHEDULED).length
+  const pendingTasks = tasks.filter(t => t.status === TaskStatus.PENDING).length
 
   const getStatusColor = (status: TaskStatus) => {
     switch (status) {
