@@ -42,7 +42,8 @@ export async function middleware(request: NextRequest) {
     if (path.startsWith('/manager')) {
       if ((token.role as string) !== UserRole.MANAGER) {
         // Redirect to appropriate dashboard based on role
-        if ([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS].includes(token.role as string)) {
+        const adminRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS]
+        if (adminRoles.includes(token.role as UserRole)) {
           return NextResponse.redirect(new URL('/admin/dashboard', request.url))
         }
         return NextResponse.redirect(new URL('/owner/dashboard', request.url))
