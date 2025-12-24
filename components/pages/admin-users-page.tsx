@@ -225,7 +225,7 @@ export function AdminUsersPage() {
     setFormData({
       name: user.name || '',
       email: user.email,
-      role: user.role,
+      role: user.role as UserRole,
       phoneNumber: user.phoneNumber || '',
       password: '',
     })
