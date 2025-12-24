@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       const csv = exportToCSV(reportData)
       const csvBuffer = Buffer.from(csv, 'utf-8')
       
-      return new NextResponse(csvBuffer, {
+      return new NextResponse(csvBuffer as any, {
         headers: {
           'Content-Type': 'text/csv',
           'Content-Disposition': `attachment; filename="${filename || 'report'}.csv"`,
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       // Excel format
       const excelBuffer = exportToExcel(reportData, filename || 'report')
       
-      return new NextResponse(excelBuffer, {
+      return new NextResponse(excelBuffer as any, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${filename || 'report'}.xlsx"`,
