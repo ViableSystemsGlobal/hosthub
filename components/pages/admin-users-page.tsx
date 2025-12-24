@@ -56,7 +56,13 @@ export function AdminUsersPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    email: string
+    role: UserRole
+    phoneNumber: string
+    password: string
+  }>({
     name: '',
     email: '',
     role: UserRole.MANAGER,
@@ -225,7 +231,7 @@ export function AdminUsersPage() {
     setFormData({
       name: user.name || '',
       email: user.email,
-      role: user.role as UserRole,
+      role: user.role,
       phoneNumber: user.phoneNumber || '',
       password: '',
     })
