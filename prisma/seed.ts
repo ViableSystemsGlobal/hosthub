@@ -276,7 +276,13 @@ async function main() {
     ]
 
     for (const taskData of tasks) {
-      await prisma.task.create({ data: taskData })
+      await prisma.task.create({ 
+        data: {
+          ...taskData,
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
+        }
+      })
     }
     console.log(`Created ${tasks.length} tasks`)
   } else {
