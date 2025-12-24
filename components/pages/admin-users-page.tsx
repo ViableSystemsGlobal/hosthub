@@ -377,14 +377,10 @@ export function AdminUsersPage() {
           icon={<UsersIcon className="w-12 h-12" />}
           title="No users found"
           description="Get started by creating a new user."
-          action={
-            <Link href="/admin/users/new">
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create User
-              </Button>
-            </Link>
-          }
+          action={{
+            label: "Create User",
+            href: "/admin/users/new",
+          }}
         />
       ) : (
         <Card>
