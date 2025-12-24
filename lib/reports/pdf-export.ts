@@ -67,7 +67,7 @@ export async function exportAllReportsToPDF(
     )
 
     // Create download link
-    const blob = new Blob([pdfBuffer], { type: 'application/pdf' })
+    const blob = new Blob([pdfBuffer as any], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
