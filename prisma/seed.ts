@@ -298,6 +298,7 @@ async function main() {
       // Create property if it doesn't exist
       const property = await prisma.property.create({
         data: {
+          id: crypto.randomUUID(),
           ownerId: owner.id,
           name: 'Beach House',
           nickname: 'Beach House Accra',
@@ -307,6 +308,7 @@ async function main() {
           currency: Currency.GHS,
           defaultCommissionRate: 0.15,
           status: 'active',
+          updatedAt: new Date(),
         },
       })
       console.log('Created property:', property.name)
