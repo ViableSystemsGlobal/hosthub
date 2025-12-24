@@ -63,7 +63,7 @@ export async function exportAllReportsToPDF(
         logoUrl: undefined,
         themeColor: '#f97316',
         receipts: [],
-      }) as React.ReactElement
+      }) as any
     )
 
     // Create download link
