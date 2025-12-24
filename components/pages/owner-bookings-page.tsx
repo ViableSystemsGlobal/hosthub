@@ -164,7 +164,6 @@ export function OwnerBookingsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="UPCOMING">Upcoming</SelectItem>
-                  <SelectItem value="CHECKED_IN">Checked In</SelectItem>
                   <SelectItem value="COMPLETED">Completed</SelectItem>
                   <SelectItem value="CANCELLED">Cancelled</SelectItem>
                 </SelectContent>
