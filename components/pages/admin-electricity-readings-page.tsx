@@ -367,7 +367,7 @@ export function AdminElectricityReadingsPage() {
                         {property.electricityMeterMinimumBalance !== null ? (
                           <span>
                             {formatCurrency(
-                              property.electricityMeterMinimumBalance,
+                              property.electricityMeterMinimumBalance || 0,
                               unit as any
                             )}
                           </span>
