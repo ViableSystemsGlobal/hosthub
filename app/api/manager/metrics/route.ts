@@ -95,14 +95,14 @@ export async function GET(request: NextRequest) {
     }) : []
 
     let monthExpensesTotal = 0
-    monthExpenses.forEach((expense) => {
-      const amountInGHS = convertCurrency(
+    for (const expense of monthExpenses) {
+      const amountInGHS = await convertCurrency(
         expense.amount,
         expense.currency,
         'GHS'
       )
       monthExpensesTotal += amountInGHS
-    })
+    }
 
     // Get tasks for assigned properties
     const pendingTasks = propertyIds.length > 0 ? await prisma.task.count({
