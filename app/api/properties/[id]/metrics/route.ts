@@ -68,23 +68,23 @@ export async function GET(
 
     // Revenue = gross revenue (baseAmount + cleaningFee)
     let revenue = 0
-    bookings.forEach((booking) => {
+    for (const booking of bookings) {
       const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-      revenue += convertCurrency(
+      revenue += await convertCurrency(
         grossBookingAmount,
         booking.currency,
         property.currency
       )
-    })
+    }
 
     let expensesTotal = 0
-    expenses.forEach((expense) => {
-      expensesTotal += convertCurrency(
+    for (const expense of expenses) {
+      expensesTotal += await convertCurrency(
         expense.amount,
         expense.currency,
         property.currency
       )
-    })
+    }
 
     const net = revenue - expensesTotal
 
