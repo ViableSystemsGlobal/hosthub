@@ -589,7 +589,7 @@ export function PropertyForm({ propertyId, initialData }: PropertyFormProps) {
 
               {formData.photos.length > 0 && (
                 <div className="grid grid-cols-4 gap-4 mt-4">
-                  {formData.photos.map((photo, index) => (
+                  {formData.photos.map((photo: string, index: number) => (
                     <div key={index} className="relative group">
                       <img
                         src={photo}
