@@ -18,7 +18,7 @@ interface ImportPreview {
   total: number
   valid: number
   invalid: number
-  duplicates: number
+  duplicateCount: number
   toImport: number
   invalidBookings: Array<{ row: number; errors: string[] }>
   duplicates: Array<{ externalReservationCode?: string; checkInDate: Date }>
@@ -322,7 +322,7 @@ export function CSVImportDialog({ open, onClose, onSuccess }: CSVImportDialogPro
               </Card>
               <Card>
                 <CardContent className="pt-4">
-                  <div className="text-2xl font-bold text-orange-600">{preview.duplicates}</div>
+                  <div className="text-2xl font-bold text-orange-600">{preview.duplicateCount}</div>
                   <div className="text-xs text-muted-foreground">Duplicates</div>
                 </CardContent>
               </Card>
