@@ -73,19 +73,34 @@ export function OwnerDetailPage({ ownerId }: OwnerDetailPageProps) {
     nextSend: null as string | null,
   })
   const [savingAiReport, setSavingAiReport] = useState(false)
-  const [paymentForm, setPaymentForm] = useState({
+  const [paymentForm, setPaymentForm] = useState<{
+    amount: string
+    currency: Currency
+    reference: string
+    notes: string
+  }>({
     amount: '',
     currency: Currency.GHS,
     reference: '',
     notes: '',
   })
-  const [payoutForm, setPayoutForm] = useState({
+  const [payoutForm, setPayoutForm] = useState<{
+    amount: string
+    currency: Currency
+    method: string
+    reference: string
+  }>({
     amount: '',
     currency: Currency.GHS,
     method: '',
     reference: '',
   })
-  const [balancePaymentForm, setBalancePaymentForm] = useState({
+  const [balancePaymentForm, setBalancePaymentForm] = useState<{
+    amount: string
+    currency: Currency
+    reference: string
+    notes: string
+  }>({
     amount: '',
     currency: Currency.GHS,
     reference: '',

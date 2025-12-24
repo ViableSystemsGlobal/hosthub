@@ -306,19 +306,20 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
       </Page>
       
       {/* Report Content - Grouped by Property */}
-      {properties.map((propertyData, propIdx) => {
-        const reportSections = Object.entries(propertyData.reports || {})
-          .filter(([, data]) => data && Array.isArray(data.rows) && data.rows.length > 0)
-          .map(([key, data]) => ({
-            key,
-            ...data,
-            headers: normalizeHeaders(data.rows, data.headers),
-          }))
+      {properties
+        .map((propertyData, propIdx) => {
+          const reportSections = Object.entries(propertyData.reports || {})
+            .filter(([, data]) => data && Array.isArray(data.rows) && data.rows.length > 0)
+            .map(([key, data]) => ({
+              key,
+              ...data,
+              headers: normalizeHeaders(data.rows, data.headers),
+            }))
 
-        if (reportSections.length === 0) return null
+          if (reportSections.length === 0) return null
 
-        return (
-          <Page key={propertyData.propertyId} size="A4" orientation="landscape" style={styles.page} wrap>
+          return (
+            <Page key={propertyData.propertyId} size="A4" orientation="landscape" style={styles.page} wrap>
             {/* Property Header */}
             <View style={styles.propertyHeader}>
               <Text style={styles.propertyTitle}>{propertyData.propertyName}</Text>
@@ -395,8 +396,9 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
               </View>
             ))}
           </Page>
-        )
-      })}
+          )
+        })
+        .filter((item): item is JSX.Element => item !== null)}
       
       {/* Receipts Page - After All Properties */}
       {receipts && receipts.length > 0 ? (

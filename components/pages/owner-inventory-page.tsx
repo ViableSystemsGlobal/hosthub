@@ -96,8 +96,8 @@ export function OwnerInventoryPage() {
       }
     }
     switch (item.status) {
-      case InventoryStatus.AVAILABLE:
-        return <Badge className="bg-green-100 text-green-800">Available</Badge>
+      case InventoryStatus.PRESENT:
+        return <Badge className="bg-green-100 text-green-800">Present</Badge>
       case InventoryStatus.MISSING:
         return <Badge className="bg-red-100 text-red-800">Missing</Badge>
       case InventoryStatus.DAMAGED:

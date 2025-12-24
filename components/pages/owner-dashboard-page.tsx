@@ -171,7 +171,6 @@ export function OwnerDashboardPage() {
                   pageType="owner_dashboard"
                   context={metrics}
                   ownerId={session?.user?.ownerId || undefined}
-                  currency={currency}
                 />
               </div>
             </DrawerContent>
