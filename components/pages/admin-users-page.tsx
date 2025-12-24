@@ -332,7 +332,7 @@ export function AdminUsersPage() {
   const totalUsers = users.length
   const managers = users.filter(u => u.role === UserRole.MANAGER).length
   const admins = users.filter(u => 
-    [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS].includes(u.role)
+    ([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS] as UserRole[]).includes(u.role)
   ).length
   const owners = users.filter(u => u.role === UserRole.OWNER).length
 
