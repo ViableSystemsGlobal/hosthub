@@ -12,6 +12,7 @@
     "start": "next start",
     "start:standalone": "node .next/standalone/server.js",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate"

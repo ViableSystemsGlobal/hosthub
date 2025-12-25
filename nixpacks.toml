@@ -1,21 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "curl", "xz"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
-# Install Node.js 22.12.0 manually to meet Prisma requirements
-cmds = [
-  "curl -fsSL https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-x64.tar.xz -o /tmp/node.tar.xz",
-  "tar -xJf /tmp/node.tar.xz -C /tmp",
-  "export PATH=/tmp/node-v22.12.0-linux-x64/bin:$PATH",
-  "node --version",
-  "npm ci --legacy-peer-deps"
-]
+cmds = ["npm ci --legacy-peer-deps"]
 
 [phases.build]
 cmds = [
-  # Force regenerate Prisma client to ensure all enums are available
-  "rm -rf node_modules/.prisma",
-  "npx prisma generate",
   "npm run build",
   # Copy static files into standalone directory (Next.js doesn't include them)
   "cp -r .next/static .next/standalone/.next/static",
@@ -24,6 +14,5 @@ cmds = [
 ]
 
 [start]
-# Run from standalone directory with the standalone server.js
 cmd = "node .next/standalone/server.js"
 
