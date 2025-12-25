@@ -12,8 +12,16 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["npx prisma generate", "npm run build"]
+cmds = [
+  "npx prisma generate",
+  "npm run build",
+  # Copy static files into standalone directory (Next.js doesn't include them)
+  "cp -r .next/static .next/standalone/.next/static",
+  # Copy public folder into standalone
+  "cp -r public .next/standalone/public"
+]
 
 [start]
-cmd = "npm start"
+# Run from standalone directory with the standalone server.js
+cmd = "node .next/standalone/server.js"
 
