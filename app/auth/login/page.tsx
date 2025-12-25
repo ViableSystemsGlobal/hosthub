@@ -143,13 +143,16 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        console.log('[Login] Sign in successful, redirecting...')
+        console.log('[Login] Sign in successful, fetching session...')
         toast.success('Login successful', 'Welcome back!')
         
-        // Use window.location for a hard redirect to ensure it works
-        // The middleware will handle role-based redirection
-        window.location.href = '/admin/dashboard'
-        return // Prevent further execution
+        // Wait a moment for session to be established, then redirect
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Force a full page reload to the dashboard
+        // This ensures cookies are properly sent with the new request
+        window.location.replace('/admin/dashboard')
+        return
       }
     } catch (err: any) {
       console.error('Login error:', err)
