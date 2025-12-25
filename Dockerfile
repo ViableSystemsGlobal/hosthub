@@ -56,9 +56,8 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Health check - use PORT env var or default to 3000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "const port = process.env.PORT || 3000; require('http').get('http://localhost:' + port + '/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# Remove internal healthcheck to prevent SIGTERM loops
+# Let EasyPanel handle health checks directly
 
 CMD ["node", "server.js"]
 

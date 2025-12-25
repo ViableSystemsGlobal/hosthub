@@ -15,6 +15,6 @@ cmds = [
 ]
 
 [start]
-# Run with HOSTNAME=0.0.0.0 to ensure the server is reachable for health checks
-cmd = "HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+# Run with PORT 3000 and HOSTNAME 0.0.0.0
+cmd = "PORT=3000 HOSTNAME=0.0.0.0 node .next/standalone/server.js"
 
