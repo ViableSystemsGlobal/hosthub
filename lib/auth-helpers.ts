@@ -4,6 +4,11 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
 
+// Auth configuration - must match NextAuth config
+const isProduction = process.env.NODE_ENV === 'production'
+const authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+const cookieName = isProduction ? '__Secure-authjs.session-token' : 'authjs.session-token'
+
 export async function getCurrentUser(request?: NextRequest) {
   let token
   
@@ -11,7 +16,8 @@ export async function getCurrentUser(request?: NextRequest) {
     // For API routes, use the request object directly
     token = await getToken({
       req: request,
-      secret: process.env.AUTH_SECRET,
+      secret: authSecret,
+      cookieName,
     })
   } else {
     // For server components, use cookies
@@ -27,7 +33,8 @@ export async function getCurrentUser(request?: NextRequest) {
           cookie: cookieHeader,
         },
       } as any,
-      secret: process.env.AUTH_SECRET,
+      secret: authSecret,
+      cookieName,
     })
   }
 
