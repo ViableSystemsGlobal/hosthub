@@ -42,7 +42,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/. ./
 
 # Copy static files (standalone doesn't include these by default)
 # CRITICAL: Copy static files AFTER standalone to ensure they're in the right place
-# The standalone build may have an empty .next/static, so we overwrite/merge it
+# Use recursive copy to ensure all subdirectories (chunks, media, etc.) are included
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Copy Prisma files
