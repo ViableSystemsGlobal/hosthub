@@ -6,7 +6,7 @@ import { UserRole } from '@prisma/client'
 export async function middleware(request: NextRequest) {
   const token = await getToken({ 
     req: request,
-    secret: process.env.AUTH_SECRET 
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
   })
 
   const path = request.nextUrl.pathname
