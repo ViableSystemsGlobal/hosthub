@@ -13,6 +13,8 @@ cmds = [
 
 [phases.build]
 cmds = [
+  # Force regenerate Prisma client to ensure all enums are available
+  "rm -rf node_modules/.prisma",
   "npx prisma generate",
   "npm run build",
   # Copy static files into standalone directory (Next.js doesn't include them)
