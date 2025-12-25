@@ -24,7 +24,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatCurrency } from '@/lib/currency'
-import { StatementStatus, Currency } from '@prisma/client'
+import { Currency } from '@prisma/client'
+// Define StatementStatus locally to avoid build issues if Prisma client is stale
+enum StatementStatus {
+  DRAFT = 'DRAFT',
+  FINALIZED = 'FINALIZED'
+}
 import { format } from 'date-fns'
 import { toast } from '@/lib/toast'
 import { FileDown } from 'lucide-react'
