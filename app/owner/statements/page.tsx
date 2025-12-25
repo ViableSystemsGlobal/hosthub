@@ -14,7 +14,12 @@ import { Badge } from '@/components/ui/badge'
 import { FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency'
-import { StatementStatus, Currency } from '@prisma/client'
+import { Currency } from '@prisma/client'
+// Define StatementStatus locally to avoid build issues if Prisma client is stale
+enum StatementStatus {
+  DRAFT = 'DRAFT',
+  FINALIZED = 'FINALIZED'
+}
 import { format } from 'date-fns'
 
 interface Statement {

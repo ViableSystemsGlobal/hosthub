@@ -17,7 +17,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
 import { Plus, Eye, FileDown, FileText, DollarSign, CheckCircle, Clock } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
-import { StatementStatus, Currency } from '@prisma/client'
+import { Currency } from '@prisma/client'
+// Define StatementStatus locally to avoid build issues if Prisma client is stale
+enum StatementStatus {
+  DRAFT = 'DRAFT',
+  FINALIZED = 'FINALIZED'
+}
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
 

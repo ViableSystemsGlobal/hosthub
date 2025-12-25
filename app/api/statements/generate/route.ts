@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { convertCurrency } from '@/lib/currency'
-import { StatementStatus, Currency, TransactionType } from '@prisma/client'
+import { Currency, TransactionType } from '@prisma/client'
+// Define StatementStatus locally to avoid build issues if Prisma client is stale
+enum StatementStatus {
+  DRAFT = 'DRAFT',
+  FINALIZED = 'FINALIZED'
+}
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
-import { StatementStatus, TransactionType } from '@prisma/client'
+import { TransactionType } from '@prisma/client'
+// Define StatementStatus locally to avoid build issues if Prisma client is stale
+enum StatementStatus {
+  DRAFT = 'DRAFT',
+  FINALIZED = 'FINALIZED'
+}
 import { triggerStatementReadyNotification } from '@/lib/notifications/service'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
