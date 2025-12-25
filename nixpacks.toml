@@ -6,15 +6,19 @@ cmds = ["npm ci --legacy-peer-deps"]
 
 [phases.build]
 cmds = [
-  # Build command includes prisma generate now
+  # Generate Prisma client and build
   "npm run build",
-  # Copy static files into standalone directory (Next.js doesn't include them)
+  # Copy static files into standalone directory
+  "mkdir -p .next/standalone/.next",
   "cp -r .next/static .next/standalone/.next/static",
-  # Copy public folder into standalone
+  # Copy public folder
   "cp -r public .next/standalone/public"
 ]
 
 [start]
-# Run with PORT 3000 and HOSTNAME 0.0.0.0
-cmd = "PORT=3000 HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+cmd = "cd .next/standalone && node server.js"
+
+[variables]
+PORT = "3000"
+HOSTNAME = "0.0.0.0"
 
