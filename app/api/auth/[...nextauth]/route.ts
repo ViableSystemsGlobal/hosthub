@@ -7,7 +7,8 @@ if (!process.env.AUTH_SECRET) {
 
 const { handlers } = NextAuth({
   ...authConfig,
-  secret: process.env.AUTH_SECRET || 'development-secret-change-in-production',
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'development-secret-change-in-production',
+  trustHost: true, // Trust the host header (required for production behind proxy)
 })
 
 export const { GET, POST } = handlers
