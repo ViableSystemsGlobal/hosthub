@@ -143,40 +143,13 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
+        console.log('[Login] Sign in successful, redirecting...')
         toast.success('Login successful', 'Welcome back!')
-        // Wait for session to update, then redirect based on role
-        // The middleware will handle role-based redirection if needed
-        await new Promise(resolve => setTimeout(resolve, 300))
         
-        // Try to get role from the session hook, with fallback
-        let role = session?.user?.role
-        
-        // If session hook doesn't have role yet, try fetching it
-        if (!role) {
-          try {
-            const response = await fetch('/api/auth/session')
-            if (response.ok) {
-              const contentType = response.headers.get('content-type')
-              if (contentType?.includes('application/json')) {
-                const sessionData = await response.json()
-                role = sessionData?.user?.role
-              }
-            }
-          } catch (err) {
-            console.error('Failed to fetch session:', err)
-          }
-        }
-        
-        // Redirect based on role, or let middleware handle it
-        if (role === UserRole.OWNER) {
-          router.push('/owner/dashboard')
-        } else if (role === UserRole.MANAGER) {
-          router.push('/manager/dashboard')
-        } else {
-          // Default to admin dashboard - middleware will redirect if needed
-          router.push('/admin/dashboard')
-        }
-        router.refresh()
+        // Use window.location for a hard redirect to ensure it works
+        // The middleware will handle role-based redirection
+        window.location.href = '/admin/dashboard'
+        return // Prevent further execution
       }
     } catch (err: any) {
       console.error('Login error:', err)
