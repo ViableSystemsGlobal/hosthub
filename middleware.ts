@@ -4,9 +4,12 @@ import { getToken } from 'next-auth/jwt'
 import { UserRole } from '@prisma/client'
 
 export async function middleware(request: NextRequest) {
+  const isProduction = process.env.NODE_ENV === 'production'
+  
   const token = await getToken({ 
     req: request,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    cookieName: isProduction ? '__Secure-authjs.session-token' : 'authjs.session-token',
   })
 
   const path = request.nextUrl.pathname
