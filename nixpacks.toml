@@ -6,6 +6,7 @@ cmds = ["npm ci --legacy-peer-deps"]
 
 [phases.build]
 cmds = [
+  # Build command includes prisma generate now
   "npm run build",
   # Copy static files into standalone directory (Next.js doesn't include them)
   "cp -r .next/static .next/standalone/.next/static",
