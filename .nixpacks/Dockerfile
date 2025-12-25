@@ -36,8 +36,9 @@ RUN adduser --system --uid 1001 nextjs
 # Copy public folder
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy standalone build (contains server.js and .next directory)
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# Copy standalone build contents (not the directory itself)
+# This extracts server.js and .next/ to /app root
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/. ./
 
 # Copy static files (standalone doesn't include these by default)
 # These need to be merged into the .next directory from standalone
