@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin()
+    await requireAdmin(request)
     
     const body = await request.json()
     const {
@@ -46,8 +46,13 @@ export async function POST(request: NextRequest) {
       password,
     } = body
 
+    const ownerId = crypto.randomUUID()
+    const now = new Date()
+
     // Create owner
     const ownerData: any = {
+      id: ownerId,
+      updatedAt: now,
       name,
       email,
       phoneNumber,
@@ -59,6 +64,8 @@ export async function POST(request: NextRequest) {
       notes,
       wallet: {
         create: {
+          id: crypto.randomUUID(),
+          updatedAt: now,
           currentBalance: 0,
           commissionsPayable: 0,
         },
@@ -72,6 +79,8 @@ export async function POST(request: NextRequest) {
       
       ownerData.user = {
         create: {
+          id: crypto.randomUUID(),
+          updatedAt: now,
           email,
           password: hashedPassword,
           role: 'OWNER',
@@ -90,6 +99,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(owner, { status: 201 })
   } catch (error: any) {
+    console.error('Create owner error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to create owner' },
       { status: 500 }
