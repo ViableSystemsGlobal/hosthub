@@ -54,7 +54,7 @@ export async function sendNewsletterReport(
   const newsletter = await generateNewsletterReport(period, report.filters as any)
 
   // Generate HTML email
-  const emailHTML = generateNewsletterEmailHTML(newsletter)
+  const emailHTML = await generateNewsletterEmailHTML(newsletter)
 
   // Send to all recipients
   const results = await Promise.allSettled(

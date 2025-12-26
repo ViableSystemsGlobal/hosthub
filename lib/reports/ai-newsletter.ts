@@ -5,8 +5,17 @@
 
 import { prisma } from '@/lib/prisma'
 import { generateChatCompletion, ChatMessage } from '@/lib/ai/providers'
-import { formatCurrency, Currency } from '@/lib/currency'
+import { formatCurrency, Currency, convertCurrency, getFxRate } from '@/lib/currency'
 import { format, startOfDay, endOfDay, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+
+/**
+ * Format currency showing both USD and GHS with exchange rate
+ */
+async function formatDualCurrency(amountUSD: number): Promise<string> {
+  const fxRate = await getFxRate(Currency.USD, Currency.GHS)
+  const amountGHS = amountUSD * fxRate
+  return `$${amountUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (GHS ${amountGHS.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} at ${fxRate.toFixed(4)} rate)`
+}
 
 export interface NewsletterReport {
   subject: string
@@ -242,29 +251,42 @@ async function generateAINarrative(
   highlights: string[]
   closing: string
 }> {
-  const prompt = `You are writing a Morning Brew-style business newsletter for a property management company. 
-Write in a conversational, engaging tone with personality. Use emojis sparingly but effectively. 
-Make it informative but not dry. Include insights, trends, and actionable takeaways.
+  // Convert revenue to USD for display (data is in GHS)
+  const revenueUSD = await convertCurrency(data.totalRevenue, Currency.GHS, Currency.USD)
+  const expensesUSD = await convertCurrency(data.totalExpenses, Currency.GHS, Currency.USD)
+  const netProfitUSD = await convertCurrency(data.totalRevenue - data.totalExpenses, Currency.GHS, Currency.USD)
+  const fxRate = await getFxRate(Currency.USD, Currency.GHS)
+
+  const revenueFormatted = await formatDualCurrency(revenueUSD)
+  const expensesFormatted = await formatDualCurrency(expensesUSD)
+  const profitFormatted = await formatDualCurrency(netProfitUSD)
+
+  const prompt = `You are writing a formal business report for a property management company. 
+Write in a professional, formal tone suitable for business stakeholders. Be clear, concise, and data-driven.
+Avoid casual language and excessive emojis. Focus on facts, analysis, and actionable insights.
 
 Here's the data for ${periodLabel}:
-- Total Revenue: ${formatCurrency(data.totalRevenue, Currency.GHS)}
+- Total Revenue: ${revenueFormatted}
 - Total Bookings: ${data.totalBookings}
 - Total Nights: ${data.totalNights}
 - Average Occupancy: ${data.averageOccupancy.toFixed(1)}%
-- Total Expenses: ${formatCurrency(data.totalExpenses, Currency.GHS)}
-- Net Profit: ${formatCurrency(data.totalRevenue - data.totalExpenses, Currency.GHS)}
+- Total Expenses: ${expensesFormatted}
+- Net Profit: ${profitFormatted}
 - Open Issues: ${data.openIssues}
 - Top Properties: ${JSON.stringify(data.topProperties.slice(0, 3))}
 
-Write a newsletter with:
-1. A brief, engaging intro (2-3 sentences) that hooks the reader
-2. 3-4 sections covering:
-   - Revenue & Performance (with key metrics)
-   - Top Performers (highlight top properties)
-   - Operations Update (issues, expenses, what's working)
-   - Quick Insights (trends, opportunities, warnings)
-3. 3-5 bullet point highlights (key takeaways)
-4. A friendly closing (1-2 sentences)
+Write a formal business report with:
+1. A professional introduction (2-3 sentences) summarizing the period's performance
+2. 3-4 formal sections covering:
+   - Revenue & Performance Analysis (with key metrics and trends)
+   - Top Performing Properties (data-driven analysis)
+   - Operational Overview (issues, expenses, operational efficiency)
+   - Strategic Insights (trends, opportunities, recommendations)
+3. 3-5 key highlights (executive summary points)
+4. A professional closing (1-2 sentences)
+
+IMPORTANT: When mentioning currency amounts, always use the format: $XX.XX (GHS XX.XX at X.XXXX rate)
+Example: "Revenue reached $5,000.00 (GHS 62,500.00 at 12.5000 rate)"
 
 Format your response as JSON:
 {
@@ -272,21 +294,21 @@ Format your response as JSON:
   "sections": [
     {
       "title": "string",
-      "content": "string (2-3 paragraphs, engaging)",
-      "emoji": "optional emoji"
+      "content": "string (2-3 paragraphs, formal and professional)",
+      "emoji": "optional emoji (use sparingly)"
     }
   ],
   "highlights": ["string", "string"],
   "closing": "string"
 }
 
-Make it feel like a real newsletter - conversational, insightful, and valuable.`
+Maintain a formal, professional tone throughout.`
 
   const messages: ChatMessage[] = [
     {
       role: 'system',
       content:
-        'You are a skilled business newsletter writer in the style of Morning Brew. Write engaging, conversational content that makes business data interesting and actionable.',
+        'You are a professional business analyst writing formal reports for property management stakeholders. Write clear, data-driven, professional content suitable for executive review.',
     },
     {
       role: 'user',

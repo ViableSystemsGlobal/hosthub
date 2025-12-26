@@ -74,7 +74,7 @@ export async function sendOwnerAIReport(ownerId: string): Promise<{
     })
 
     // Generate HTML email
-    const emailHTML = generateNewsletterEmailHTML(newsletter)
+    const emailHTML = await generateNewsletterEmailHTML(newsletter)
 
     // Send email
     const result = await sendEmail({
