@@ -38,7 +38,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    await requireAdmin()
+    await requireAdmin(request)
     
     const body = await request.json()
     const {
@@ -65,7 +65,8 @@ export async function PATCH(
         amountInBase,
         date: date ? new Date(date) : undefined,
         paidBy,
-        linkedTaskId,
+        // Handle empty string as null for foreign key
+        linkedTaskId: linkedTaskId || null,
       },
       include: {
         Property: true,
@@ -75,6 +76,7 @@ export async function PATCH(
 
     return NextResponse.json(expense)
   } catch (error: any) {
+    console.error('Update expense error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to update expense' },
       { status: 500 }
