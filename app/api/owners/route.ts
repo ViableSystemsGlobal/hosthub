@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       payoutDetails,
       status: status || 'active',
       notes,
-      wallet: {
+      OwnerWallet: {
         create: {
           id: crypto.randomUUID(),
           updatedAt: now,
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       const bcrypt = await import('bcryptjs')
       const hashedPassword = await bcrypt.default.hash(password, 10)
       
-      ownerData.user = {
+      ownerData.User = {
         create: {
           id: crypto.randomUUID(),
           updatedAt: now,
