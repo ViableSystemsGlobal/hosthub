@@ -194,14 +194,15 @@ export async function POST(request: NextRequest) {
       const commissionRate = property.defaultCommissionRate || 0.15
       const grossBookingAmount = baseAmount + cleaningFee
       const commission = grossBookingAmount * commissionRate
-      const commissionInBase = await convertCurrency(commission, currency as Currency)
+      // Convert to GHS for consistent storage (commissionsPayable is always in GHS)
+      const commissionInGHS = await convertCurrency(commission, currency as Currency, 'GHS')
 
       // Update wallet with new commission payable
       await prisma.ownerWallet.update({
         where: { id: wallet.id },
         data: {
           commissionsPayable: {
-            increment: commissionInBase,
+            increment: commissionInGHS,
           },
         },
       })

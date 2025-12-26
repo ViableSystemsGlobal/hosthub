@@ -144,14 +144,14 @@ export async function PATCH(
       })
     }
 
-    // Calculate old and new commission
+    // Calculate old and new commission (convert to GHS for consistent storage)
     const oldGrossAmount = existingBooking.baseAmount + existingBooking.cleaningFee
     const oldCommission = oldGrossAmount * commissionRate
-    const oldCommissionInBase = await convertCurrency(oldCommission, existingBooking.currency as Currency)
+    const oldCommissionInGHS = await convertCurrency(oldCommission, existingBooking.currency as Currency, 'GHS')
 
     const newGrossAmount = (booking.baseAmount || existingBooking.baseAmount) + (booking.cleaningFee || existingBooking.cleaningFee)
     const newCommission = newGrossAmount * commissionRate
-    const newCommissionInBase = await convertCurrency(newCommission, (booking.currency || existingBooking.currency) as Currency)
+    const newCommissionInGHS = await convertCurrency(newCommission, (booking.currency || existingBooking.currency) as Currency, 'GHS')
 
     // Update commissions payable based on changes
     if (oldPaymentReceivedBy === 'OWNER' && newPaymentReceivedBy === 'COMPANY') {
@@ -160,7 +160,7 @@ export async function PATCH(
         where: { id: wallet.id },
         data: {
           commissionsPayable: {
-            decrement: oldCommissionInBase,
+            decrement: oldCommissionInGHS,
           },
         },
       })
@@ -170,13 +170,13 @@ export async function PATCH(
         where: { id: wallet.id },
         data: {
           commissionsPayable: {
-            increment: newCommissionInBase,
+            increment: newCommissionInGHS,
           },
         },
       })
     } else if (oldPaymentReceivedBy === 'OWNER' && newPaymentReceivedBy === 'OWNER') {
       // Still OWNER but amounts changed: adjust commission difference
-      const commissionDiff = newCommissionInBase - oldCommissionInBase
+      const commissionDiff = newCommissionInGHS - oldCommissionInGHS
       if (commissionDiff !== 0) {
         await prisma.ownerWallet.update({
           where: { id: wallet.id },
