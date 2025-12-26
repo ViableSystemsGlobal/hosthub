@@ -104,11 +104,23 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const forecast = await generateForecast(historicalData, propertyId || undefined, ownerId || undefined, currency)
-
-    return NextResponse.json(forecast)
+    try {
+      const forecast = await generateForecast(historicalData, propertyId || undefined, ownerId || undefined, currency)
+      return NextResponse.json(forecast)
+    } catch (forecastError: any) {
+      console.error('Forecast generation error:', forecastError)
+      // Return a fallback forecast if AI service fails
+      return NextResponse.json({
+        forecastMonthlyRevenue: [0, 0, 0, 0, 0, 0],
+        forecastOccupancy: [0, 0, 0, 0, 0, 0],
+        narrative: `Unable to generate AI forecast. ${forecastError.message || 'Please check AI API configuration.'}`,
+        low: 0,
+        expected: 0,
+        high: 0,
+      })
+    }
   } catch (error: any) {
-    console.error('Forecast generation error:', error)
+    console.error('Forecast API error:', error)
     return NextResponse.json(
       { 
         error: error.message || 'Failed to generate forecast',

@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
+import { Pagination } from '@/components/ui/pagination'
 import {
   Select,
   SelectContent,
@@ -59,6 +60,8 @@ export function AdminBookingsPage() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [totalRevenue, setTotalRevenue] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(20)
   const [filters, setFilters] = useState({
     propertyId: '',
     source: '',
@@ -166,6 +169,7 @@ export function AdminBookingsPage() {
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({ ...filters, [key]: value })
+    setCurrentPage(1) // Reset to first page when filters change
   }
 
   const applyFilters = () => {
@@ -622,7 +626,7 @@ export function AdminBookingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bookings.map((booking) => (
+                {bookings.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell>
                       <button
@@ -683,6 +687,15 @@ export function AdminBookingsPage() {
                 ))}
               </TableBody>
             </Table>
+            {bookings.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(bookings.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={bookings.length}
+              />
+            )}
           </CardContent>
         </Card>
       )}
