@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
 
     // Calculate totals
     let grossRevenue = 0
-    let totalExpenses = 0
 
     // Separate bookings by payment flow
     const companyBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'COMPANY')
