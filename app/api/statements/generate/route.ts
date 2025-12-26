@@ -174,17 +174,9 @@ export async function POST(request: NextRequest) {
     const netFromCompany = companyRevenue - totalExpenses - companyCommission
     const netToOwner = netFromCompany - ownerCommission
 
-    // Get opening balance (from wallet or last statement)
-    const lastStatement = await prisma.statement.findFirst({
-      where: { ownerId },
-      orderBy: { periodEnd: 'desc' },
-    })
-
-    const openingBalance = lastStatement
-      ? lastStatement.closingBalance
-      : owner.OwnerWallet?.currentBalance || 0
-
-    const closingBalance = openingBalance + netToOwner
+    // Opening balance is always 0 for each period (fresh start)
+    const openingBalance = 0
+    const closingBalance = netToOwner
 
     // Get current commissions payable from wallet
     const commissionsPayable = owner.OwnerWallet?.commissionsPayable || 0
