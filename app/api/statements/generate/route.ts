@@ -77,14 +77,28 @@ export async function POST(request: NextRequest) {
       grossRevenue += amountInDisplay
     }
 
+    // Separate expenses by who paid
+    let companyPaidExpenses = 0
+    let ownerPaidExpenses = 0
+    
     for (const expense of expenses) {
       const amountInDisplay = await convertCurrency(
         expense.amount,
         expense.currency,
         currency
       )
-      totalExpenses += amountInDisplay
+      
+      // If company paid, subtract from what we owe owner
+      // If owner paid, add to what we owe owner (reimbursement)
+      if (expense.paidBy === 'owner') {
+        ownerPaidExpenses += amountInDisplay
+      } else if (expense.paidBy === 'company') {
+        companyPaidExpenses += amountInDisplay
+      }
+      // Vendor-paid expenses don't affect owner balance
     }
+    
+    const totalExpenses = companyPaidExpenses + ownerPaidExpenses
 
     // Calculate commission (rate * gross revenue per property)
     // Commission is calculated on gross revenue (baseAmount + cleaningFee)
@@ -168,11 +182,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Net to owner calculation:
-    // - For COMPANY bookings: we owe them = companyRevenue - expenses - companyCommission (positive)
+    // - For COMPANY bookings: we owe them = companyRevenue - companyPaidExpenses - companyCommission (positive)
     // - For OWNER bookings: they owe us = ownerCommission (negative, so subtract it)
+    // - Owner-paid expenses: we owe them back (reimbursement) = ownerPaidExpenses (positive, so add it)
     // - Total net = what we owe minus what they owe us
-    const netFromCompany = companyRevenue - totalExpenses - companyCommission
-    const netToOwner = netFromCompany - ownerCommission
+    const netFromCompany = companyRevenue - companyPaidExpenses - companyCommission
+    const netToOwner = netFromCompany - ownerCommission + ownerPaidExpenses
 
     // Opening balance is always 0 for each period (fresh start)
     const openingBalance = 0
