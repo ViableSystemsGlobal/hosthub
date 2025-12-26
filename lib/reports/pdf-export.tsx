@@ -15,7 +15,13 @@ async function getLogoUrl(): Promise<string | null> {
     })
     if (res.ok) {
       const data = await res.json()
-      return data.logoUrl || null
+      if (data.logoUrl) {
+        // Convert relative URL to absolute URL for PDF rendering
+        if (data.logoUrl.startsWith('/')) {
+          return `${baseUrl}${data.logoUrl}`
+        }
+        return data.logoUrl
+      }
     }
   } catch (error) {
     console.error('Failed to fetch logo:', error)
