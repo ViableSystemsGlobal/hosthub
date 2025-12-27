@@ -139,7 +139,8 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // For manual testing, send to all enabled owners (ignore nextSend)
-      const result = await executeOwnerAIReportsForTesting()
+      const { executeOwnerAIReportsForTesting } = await import('@/lib/reports/owner-ai-reports')
+      const result = await executeOwnerAIReportsForTesting(reportPeriod)
       const { success: successCount, ...restResult } = result
 
       return NextResponse.json({
