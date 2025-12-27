@@ -164,7 +164,7 @@ export async function executeOwnerAIReports(): Promise<{
   for (const owner of owners) {
     try {
       executed++
-      const result = await sendOwnerAIReport(owner.id)
+      const result = await sendOwnerAIReport(owner.id, period)
 
       if (result.success) {
         success++
@@ -222,7 +222,7 @@ export async function executeOwnerAIReportsForTesting(
   for (const owner of owners) {
     try {
       executed++
-      const result = await sendOwnerAIReport(owner.id)
+      const result = await sendOwnerAIReport(owner.id, period)
 
       if (result.success) {
         success++
