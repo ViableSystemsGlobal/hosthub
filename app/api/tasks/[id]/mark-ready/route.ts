@@ -170,53 +170,57 @@ export async function POST(
       console.log(`Sending cleaning ready notifications to ${recipients.length} recipients`)
 
       // Send SMS and Email to all recipients (non-blocking)
-      const notificationPromises = recipients.flatMap((recipient) => {
-        const promises: Promise<any>[] = []
+      const notificationPromises = await Promise.all(
+        recipients.map(async (recipient) => {
+          const promises: Promise<any>[] = []
 
-        // Send SMS if phone number available
-        if (recipient.phoneNumber) {
-          promises.push(
-            sendSMS(recipient.phoneNumber, smsMessage)
-              .then((result) => {
-                if (result.success) {
-                  console.log(`✅ SMS sent to ${recipient.name} (${recipient.phoneNumber})`)
-                } else {
-                  console.error(`❌ SMS failed for ${recipient.name}: ${result.error}`)
-                }
-                return result
-              })
-              .catch((err) => {
-                console.error(`❌ SMS error for ${recipient.name} (${recipient.phoneNumber}):`, err)
-                return { success: false, error: err.message }
-              })
-          )
-        }
+          // Send SMS if phone number available
+          if (recipient.phoneNumber) {
+            promises.push(
+              sendSMS(recipient.phoneNumber, smsMessage)
+                .then((result) => {
+                  if (result.success) {
+                    console.log(`✅ SMS sent to ${recipient.name} (${recipient.phoneNumber})`)
+                  } else {
+                    console.error(`❌ SMS failed for ${recipient.name}: ${result.error}`)
+                  }
+                  return result
+                })
+                .catch((err) => {
+                  console.error(`❌ SMS error for ${recipient.name} (${recipient.phoneNumber}):`, err)
+                  return { success: false, error: err.message }
+                })
+            )
+          }
 
-        // Send Email if email available
-        if (recipient.email) {
-          promises.push(
-            sendEmail({
-              to: recipient.email,
-              subject: emailSubject,
-              html: await generateEmailTemplate(emailSubject, emailMessage.replace(/\n/g, '<br>')),
-            })
-              .then((result) => {
-                if (result.success) {
-                  console.log(`✅ Email sent to ${recipient.name} (${recipient.email})`)
-                } else {
-                  console.error(`❌ Email failed for ${recipient.name}: ${result.error}`)
-                }
-                return result
+          // Send Email if email available
+          if (recipient.email) {
+            // Generate email template first (async)
+            const emailHtml = await generateEmailTemplate(emailSubject, emailMessage.replace(/\n/g, '<br>'))
+            promises.push(
+              sendEmail({
+                to: recipient.email,
+                subject: emailSubject,
+                html: emailHtml,
               })
-              .catch((err) => {
-                console.error(`❌ Email error for ${recipient.name} (${recipient.email}):`, err)
-                return { success: false, error: err.message }
-              })
-          )
-        }
+                .then((result) => {
+                  if (result.success) {
+                    console.log(`✅ Email sent to ${recipient.name} (${recipient.email})`)
+                  } else {
+                    console.error(`❌ Email failed for ${recipient.name}: ${result.error}`)
+                  }
+                  return result
+                })
+                .catch((err) => {
+                  console.error(`❌ Email error for ${recipient.name} (${recipient.email}):`, err)
+                  return { success: false, error: err.message }
+                })
+            )
+          }
 
-        return promises
-      })
+          return promises
+        })
+      ).then(results => results.flat())
 
       const results = await Promise.allSettled(notificationPromises)
       const successCount = results.filter((r) => r.status === 'fulfilled' && r.value?.success).length
