@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { AppLogo } from '@/components/ui/app-logo'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
@@ -23,6 +23,22 @@ export default function LoginPage() {
   const [otpRequired, setOtpRequired] = useState(false)
   const [otpMethod, setOtpMethod] = useState<'EMAIL' | 'SMS'>('EMAIL')
   const [sendingOtp, setSendingOtp] = useState(false)
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      const role = session.user.role
+      const adminRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS]
+      
+      if (adminRoles.includes(role)) {
+        window.location.href = '/admin/dashboard'
+      } else if (role === UserRole.MANAGER) {
+        window.location.href = '/manager/dashboard'
+      } else if (role === UserRole.OWNER) {
+        window.location.href = '/owner/dashboard'
+      }
+    }
+  }, [status, session])
 
   const requestOtp = async (method?: 'EMAIL' | 'SMS') => {
     setSendingOtp(true)
