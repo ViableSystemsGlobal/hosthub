@@ -90,7 +90,9 @@ export async function POST(request: NextRequest) {
             in: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'],
           },
           email: {
-            not: null,
+            not: {
+              equals: null,
+            },
           },
         },
         select: {
