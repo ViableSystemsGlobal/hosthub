@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, Download, Loader2, Calendar, DollarSign, Receipt, TrendingUp, Package, Sparkles, Zap, CheckCircle } from 'lucide-react'
+import { FileText, Download, Loader2, Calendar, DollarSign, Receipt, TrendingUp, Package, Sparkles, Zap, CheckCircle, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from '@/lib/toast'
 import { exportAllReportsToPDF, exportReportToPDF } from '@/lib/reports/pdf-export'
 
-type ReportType = 'bookings' | 'expenses' | 'revenue' | 'occupancy' | 'inventory' | 'cleaning-tasks' | 'check-in' | 'electricity' | 'all'
+type ReportType = 'bookings' | 'expenses' | 'revenue' | 'occupancy' | 'inventory' | 'cleaning-tasks' | 'check-in' | 'electricity' | 'issues' | 'all'
 
 const allReportTypes: ReportType[] = [
   'bookings',
@@ -23,6 +23,7 @@ const allReportTypes: ReportType[] = [
   'cleaning-tasks',
   'check-in',
   'electricity',
+  'issues',
 ]
 
 const reportLabels: Record<ReportType, string> = {
@@ -34,6 +35,7 @@ const reportLabels: Record<ReportType, string> = {
   'cleaning-tasks': 'Cleaning Tasks',
   'check-in': 'Check-In',
   electricity: 'Electricity',
+  issues: 'Issues',
   all: 'All Reports',
 }
 
@@ -89,6 +91,7 @@ export function OwnerReportsPage() {
         'cleaning-tasks': 'CLEANING_TASKS',
         'check-in': 'CHECK_IN',
         'electricity': 'ELECTRICITY',
+        'issues': 'ISSUES',
       }
 
       if (reportType === 'all') {
@@ -204,6 +207,7 @@ export function OwnerReportsPage() {
         'cleaning-tasks': 'CLEANING_TASKS',
         'check-in': 'CHECK_IN',
         'electricity': 'ELECTRICITY',
+        'issues': 'ISSUES',
       }
       const reportTypeUpper = reportTypeMap[reportType] || 'BOOKINGS'
       
@@ -269,7 +273,7 @@ export function OwnerReportsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <Tabs value={reportType} onValueChange={(v) => setReportType(v as ReportType)}>
-            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-10">
               <TabsTrigger value="all">
                 <Sparkles className="w-4 h-4 mr-2" />
                 All
@@ -305,6 +309,10 @@ export function OwnerReportsPage() {
               <TabsTrigger value="electricity">
                 <Zap className="w-4 h-4 mr-2" />
                 Electricity
+              </TabsTrigger>
+              <TabsTrigger value="issues">
+                <AlertCircle className="w-4 h-4 mr-2" />
+                Issues
               </TabsTrigger>
             </TabsList>
 

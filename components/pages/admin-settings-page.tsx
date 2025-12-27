@@ -1545,6 +1545,7 @@ function DiagnosticsTab() {
   const [aiReportTestResult, setAiReportTestResult] = useState<any>(null)
   const [aiReportSendResult, setAiReportSendResult] = useState<any>(null)
   const [showSendConfirmDialog, setShowSendConfirmDialog] = useState(false)
+  const [sendReportType, setSendReportType] = useState<'owners' | 'company'>('owners')
 
   const runDiagnostics = async () => {
     try {
@@ -1738,19 +1739,37 @@ function DiagnosticsTab() {
               </p>
             </div>
 
-            {/* Send Manually Button */}
-            <div className="space-y-2">
+            {/* Send Manually Buttons */}
+            <div className="space-y-4">
               <h4 className="font-medium text-sm">Send Manually</h4>
-              <Button
-                onClick={() => setShowSendConfirmDialog(true)}
-                disabled={testingAIReports || sendingAIReports}
-                className="w-full"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Send Reports Now
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={() => {
+                    setShowSendConfirmDialog(true)
+                    setSendReportType('owners')
+                  }}
+                  disabled={testingAIReports || sendingAIReports}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send to Owners
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowSendConfirmDialog(true)
+                    setSendReportType('company')
+                  }}
+                  disabled={testingAIReports || sendingAIReports}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Company Report
+                </Button>
+              </div>
               <p className="text-xs text-gray-500">
-                Manually send reports if cron job fails. Sends to all enabled owners.
+                Manually send reports if cron job fails. "Send to Owners" sends personalized reports to each property owner. "Send Company Report" sends a company-wide report to all admins and managers.
               </p>
             </div>
           </div>
@@ -1761,7 +1780,9 @@ function DiagnosticsTab() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Send AI Reports</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to send AI reports to all enabled owners? This will send actual reports via email.
+                  {sendReportType === 'owners' 
+                    ? 'Are you sure you want to send personalized AI reports to all enabled property owners? This will send actual reports via email.'
+                    : 'Are you sure you want to send a company-wide AI report to all admins and managers? This will send actual reports via email.'}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -1774,12 +1795,17 @@ function DiagnosticsTab() {
                       setAiReportSendResult(null)
                       const res = await fetch('/api/ai-reports/execute', {
                         method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
+                        body: JSON.stringify({ type: sendReportType }),
                       })
                       const data = await res.json()
                       if (res.ok) {
                         setAiReportSendResult(data)
-                        toast.success('AI Reports Sent', `Successfully sent ${data.success} reports to owners. ${data.failed > 0 ? `${data.failed} failed.` : ''}`)
+                        const message = sendReportType === 'owners'
+                          ? `Successfully sent ${data.successCount || data.success} owner reports. ${data.failed > 0 ? `${data.failed} failed.` : ''}`
+                          : `Successfully sent company report to ${data.successCount || data.success} recipients. ${data.failed > 0 ? `${data.failed} failed.` : ''}`
+                        toast.success('AI Reports Sent', message)
                       } else {
                         throw new Error(data.error || 'Failed to send AI reports')
                       }

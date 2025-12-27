@@ -198,7 +198,7 @@ export async function POST(
             sendEmail({
               to: recipient.email,
               subject: emailSubject,
-              html: generateEmailTemplate(emailSubject, emailMessage.replace(/\n/g, '<br>')),
+              html: await generateEmailTemplate(emailSubject, emailMessage.replace(/\n/g, '<br>')),
             })
               .then((result) => {
                 if (result.success) {

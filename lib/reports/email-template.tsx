@@ -160,6 +160,11 @@ export async function generateNewsletterEmailHTML(report: NewsletterReport): Pro
     .footer p {
       margin-bottom: 4px;
     }
+    .footer-brand {
+      font-weight: 500;
+      color: #1a1a1a;
+      margin-top: 8px;
+    }
     @media only screen and (max-width: 600px) {
       .content {
         padding: 30px 20px 20px;
@@ -235,6 +240,7 @@ export async function generateNewsletterEmailHTML(report: NewsletterReport): Pro
     <div class="footer">
       <p>This is an automated report from HostHub</p>
       <p>You're receiving this because you're subscribed to scheduled reports.</p>
+      <p class="footer-brand">Hosthub by Aura Realty</p>
     </div>
   </div>
 </body>

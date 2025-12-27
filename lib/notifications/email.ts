@@ -159,38 +159,15 @@ function stripHtml(html: string): string {
 
 /**
  * Generate HTML email templates
+ * Uses Paystack-style template
  */
-export function generateEmailTemplate(title: string, content: string, actionUrl?: string, actionText?: string): string {
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #f97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-    <h1 style="margin: 0;">HostHub</h1>
-  </div>
-  <div style="background-color: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-    <h2 style="color: #f97316; margin-top: 0;">${title}</h2>
-    <div style="margin: 20px 0;">
-      ${content}
-    </div>
-    ${actionUrl && actionText ? `
-    <div style="margin: 30px 0; text-align: center;">
-      <a href="${actionUrl}" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-        ${actionText}
-      </a>
-    </div>
-    ` : ''}
-  </div>
-  <div style="text-align: center; margin-top: 20px; color: #6b7280; font-size: 12px;">
-    <p>This is an automated message from HostHub. Please do not reply to this email.</p>
-  </div>
-</body>
-</html>
-  `.trim()
+export async function generateEmailTemplate(title: string, content: string, actionUrl?: string, actionText?: string): Promise<string> {
+  const { generatePaystackStyleEmailHTML } = await import('@/lib/notifications/email-template')
+  return generatePaystackStyleEmailHTML({
+    title,
+    content,
+    actionUrl,
+    actionText,
+  })
 }
 

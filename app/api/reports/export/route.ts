@@ -10,6 +10,7 @@ import {
   generateCleaningTasksReport,
   generateCheckInReport,
   generateElectricityReport,
+  generateIssuesReport,
 } from '@/lib/reports/generator'
 import { exportToExcel, exportToCSV } from '@/lib/reports/excel-export'
 import { ReportType } from '@prisma/client'
@@ -84,6 +85,9 @@ export async function POST(request: NextRequest) {
         break
       case 'ELECTRICITY':
         reportData = await generateElectricityReport(finalFilters, fields)
+        break
+      case 'ISSUES':
+        reportData = await generateIssuesReport(finalFilters, fields)
         break
       default:
         return NextResponse.json(

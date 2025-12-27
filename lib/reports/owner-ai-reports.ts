@@ -71,7 +71,7 @@ export async function sendOwnerAIReport(ownerId: string): Promise<{
     const newsletter = await generateNewsletterReport(period, {
       ownerIds: [ownerId],
       propertyIds: propertyIds.length > 0 ? propertyIds : undefined,
-    })
+    }, owner.name)
 
     // Generate HTML email
     const emailHTML = await generateNewsletterEmailHTML(newsletter)

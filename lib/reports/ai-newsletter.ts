@@ -48,7 +48,8 @@ export async function generateNewsletterReport(
   filters?: {
     propertyIds?: string[]
     ownerIds?: string[]
-  }
+  },
+  ownerName?: string
 ): Promise<NewsletterReport> {
   // Calculate date range based on period
   const now = new Date()
@@ -77,7 +78,7 @@ export async function generateNewsletterReport(
   const data = await collectReportData(startDate, endDate, filters)
 
   // Generate AI narrative
-  const narrative = await generateAINarrative(data, period, periodLabel)
+  const narrative = await generateAINarrative(data, period, periodLabel, ownerName)
 
   // Format metrics
   const metrics = {
@@ -88,9 +89,14 @@ export async function generateNewsletterReport(
     netProfit: data.totalRevenue - data.totalExpenses,
   }
 
+  // Personalized greeting
+  const greeting = ownerName 
+    ? `Dear ${ownerName},`
+    : `Good morning! ☀️`
+
   return {
     subject: `${periodLabel} Report: ${formatCurrency(metrics.revenue, Currency.GHS)} Revenue | ${metrics.bookings} Bookings`,
-    greeting: `Good morning! ☀️`,
+    greeting,
     intro: narrative.intro,
     sections: narrative.sections,
     highlights: narrative.highlights,
@@ -244,7 +250,8 @@ async function collectReportData(
 async function generateAINarrative(
   data: any,
   period: 'daily' | 'weekly' | 'monthly',
-  periodLabel: string
+  periodLabel: string,
+  ownerName?: string
 ): Promise<{
   intro: string
   sections: NewsletterSection[]
@@ -261,9 +268,14 @@ async function generateAINarrative(
   const expensesFormatted = await formatDualCurrency(expensesUSD)
   const profitFormatted = await formatDualCurrency(netProfitUSD)
 
-  const prompt = `You are writing a formal business report for a property management company. 
+  const ownerContext = ownerName 
+    ? `This report is specifically for ${ownerName}, focusing on their properties only. Address them directly (e.g., "Your properties", "Your revenue").`
+    : `This is a company-wide report covering all properties.`
+
+  const prompt = `You are writing a formal business report ${ownerName ? `specifically for ${ownerName}` : 'for a property management company'}. 
 Write in a professional, formal tone suitable for business stakeholders. Be clear, concise, and data-driven.
 Avoid casual language and excessive emojis. Focus on facts, analysis, and actionable insights.
+${ownerContext}
 
 Here's the data for ${periodLabel}:
 - Total Revenue: ${revenueFormatted}

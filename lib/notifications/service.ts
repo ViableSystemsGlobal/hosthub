@@ -144,21 +144,33 @@ export async function sendNotification(data: NotificationData): Promise<void> {
         })
       } else if (channel === NotificationChannel.EMAIL && recipientEmail) {
         let emailSubject = title
-        let emailHtml = htmlContent || generateEmailTemplate(title, message, actionUrl, actionText)
+        let emailHtml = htmlContent
 
         // Try to use template if templateType is provided
         if (templateType && templateVariables) {
           const templateResult = await renderEmailTemplateByType(templateType, templateVariables)
           if (templateResult) {
             emailSubject = templateResult.subject
-            // Wrap template body in the standard email template for consistent styling
-            emailHtml = generateEmailTemplate(
-              emailSubject,
-              templateResult.body.replace(/\n/g, '<br>'),
+            // Use Paystack-style template wrapper
+            const { generatePaystackStyleEmailHTML } = await import('@/lib/notifications/email-template')
+            emailHtml = await generatePaystackStyleEmailHTML({
+              title: emailSubject,
+              content: templateResult.body,
               actionUrl,
-              actionText
-            )
+              actionText,
+            })
           }
+        }
+
+        // Use Paystack-style template if no HTML content provided
+        if (!emailHtml) {
+          const { generatePaystackStyleEmailHTML } = await import('@/lib/notifications/email-template')
+          emailHtml = await generatePaystackStyleEmailHTML({
+            title: emailSubject,
+            content: message,
+            actionUrl,
+            actionText,
+          })
         }
 
         const result = await sendEmail({

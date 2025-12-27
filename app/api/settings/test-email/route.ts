@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const testMessage = message || 'This is a test email from HostHub. Your email configuration is working correctly!'
     
     // Generate HTML email template
-    const htmlContent = generateEmailTemplate(
+    const htmlContent = await generateEmailTemplate(
       testSubject,
       `<p>${testMessage}</p>`,
       undefined,

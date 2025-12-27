@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       const result = await sendEmail({
         to: userRecord.email,
         subject: 'Your HostHub Verification Code',
-        html: generateEmailTemplate(
+        html: await generateEmailTemplate(
           'Your HostHub Verification Code',
           `Hello ${userName},<br><br>Your verification code is: <strong>${otpCode}</strong><br><br>This code will expire in 10 minutes.<br><br>If you didn't request this code, please ignore this email.`
         ),
