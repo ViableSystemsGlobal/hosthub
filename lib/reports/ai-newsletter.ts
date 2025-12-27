@@ -328,10 +328,39 @@ Maintain a formal, professional tone throughout.`
     },
   ]
 
-  const responseText = await generateChatCompletion(messages, {
-    responseFormat: { type: 'json_object' },
-    temperature: 0.8, // Higher temperature for more creative writing
-  })
+  let responseText: string
+  try {
+    responseText = await generateChatCompletion(messages, {
+      responseFormat: { type: 'json_object' },
+      temperature: 0.8, // Higher temperature for more creative writing
+    })
+  } catch (error: any) {
+    console.error('Failed to generate AI completion:', error)
+    // If AI fails, return a fallback report
+    const fallbackIntro = ownerName 
+      ? `${ownerName}, here's your ${periodLabel.toLowerCase()} report.`
+      : `Here's your ${periodLabel.toLowerCase()} report.`
+    
+    return {
+      intro: fallbackIntro,
+      sections: [
+        {
+          title: 'Revenue & Performance',
+          content: `${ownerName ? 'Your properties' : 'The company'} generated ${formatCurrency(data.totalRevenue, Currency.GHS)} in revenue from ${data.totalBookings} bookings.`,
+        },
+        {
+          title: 'Top Performers',
+          content: `${ownerName ? 'Your top properties' : 'The top properties'} are performing well.`,
+        },
+      ],
+      highlights: [
+        `${data.totalBookings} bookings completed`,
+        `${formatCurrency(data.totalRevenue, Currency.GHS)} in revenue`,
+        `${data.averageOccupancy.toFixed(1)}% average occupancy`,
+      ],
+      closing: ownerName ? 'Thank you for your continued partnership.' : 'Keep up the great work!',
+    }
+  }
 
   try {
     const parsed = JSON.parse(responseText || '{}')
@@ -344,16 +373,20 @@ Maintain a formal, professional tone throughout.`
   } catch (error: any) {
     console.error('Failed to parse AI newsletter response:', error)
     // Fallback to a simple report
+    const fallbackIntro = ownerName 
+      ? `${ownerName}, here's your ${periodLabel.toLowerCase()} report.`
+      : `Here's your ${periodLabel.toLowerCase()} report.`
+    
     return {
-      intro: `Here's your ${periodLabel.toLowerCase()} report.`,
+      intro: fallbackIntro,
       sections: [
         {
           title: 'Revenue & Performance',
-          content: `You generated ${formatCurrency(data.totalRevenue, Currency.GHS)} in revenue from ${data.totalBookings} bookings.`,
+          content: `${ownerName ? 'Your properties' : 'The company'} generated ${formatCurrency(data.totalRevenue, Currency.GHS)} in revenue from ${data.totalBookings} bookings.`,
         },
         {
           title: 'Top Performers',
-          content: `Your top properties are performing well.`,
+          content: `${ownerName ? 'Your top properties' : 'The top properties'} are performing well.`,
         },
       ],
       highlights: [
@@ -361,7 +394,7 @@ Maintain a formal, professional tone throughout.`
         `${formatCurrency(data.totalRevenue, Currency.GHS)} in revenue`,
         `${data.averageOccupancy.toFixed(1)}% average occupancy`,
       ],
-      closing: 'Keep up the great work!',
+      closing: ownerName ? 'Thank you for your continued partnership.' : 'Keep up the great work!',
     }
   }
 }

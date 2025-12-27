@@ -66,7 +66,22 @@ export async function POST(request: NextRequest) {
       const { prisma } = await import('@/lib/prisma')
 
       // Generate company-wide report (no owner filter)
-      const newsletter = await generateNewsletterReport('weekly', undefined, undefined)
+      let newsletter
+      try {
+        newsletter = await generateNewsletterReport('weekly', undefined, undefined)
+      } catch (error: any) {
+        console.error('Failed to generate company-wide AI report:', error)
+        let errorMessage = error.message || 'Failed to generate AI report'
+        if (errorMessage.includes('x-api-key') || errorMessage.includes('authentication_error') || errorMessage.includes('401')) {
+          errorMessage = 'AI API authentication failed. Please check your API key in Settings → AI Providers.'
+        } else if (errorMessage.includes('API key not configured')) {
+          errorMessage = 'AI API key is not configured. Please add it in Settings → AI Providers.'
+        }
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: 500 }
+        )
+      }
 
       // Get all admin and manager emails
       const users = await prisma.user.findMany({

@@ -1807,12 +1807,32 @@ function DiagnosticsTab() {
                           : `Successfully sent company report to ${data.successCount || data.success} recipients. ${data.failed > 0 ? `${data.failed} failed.` : ''}`
                         toast.success('AI Reports Sent', message)
                       } else {
-                        throw new Error(data.error || 'Failed to send AI reports')
+                        // Handle different error formats
+                        let errorMessage = 'Failed to send AI reports'
+                        if (data.error) {
+                          if (typeof data.error === 'string') {
+                            errorMessage = data.error
+                          } else if (data.error.message) {
+                            errorMessage = data.error.message
+                          } else if (data.error.type === 'authentication_error') {
+                            errorMessage = 'AI API authentication failed. Please check your API key in Settings → AI Providers.'
+                          }
+                        }
+                        throw new Error(errorMessage)
                       }
                     } catch (error: any) {
                       console.error('AI reports send error:', error)
-                      toast.error('Failed to Send Reports', error.message)
-                      setAiReportSendResult({ error: error.message })
+                      let errorMessage = error.message || 'Failed to send AI reports'
+                      
+                      // Check if it's an authentication error
+                      if (errorMessage.includes('x-api-key') || errorMessage.includes('authentication_error') || errorMessage.includes('401')) {
+                        errorMessage = 'AI API authentication failed. Please check your API key in Settings → AI Providers.'
+                      } else if (errorMessage.includes('API key not configured')) {
+                        errorMessage = 'AI API key is not configured. Please add it in Settings → AI Providers.'
+                      }
+                      
+                      toast.error('Failed to Send Reports', errorMessage)
+                      setAiReportSendResult({ error: errorMessage })
                     } finally {
                       setSendingAIReports(false)
                     }

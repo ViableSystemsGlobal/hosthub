@@ -68,10 +68,23 @@ export async function sendOwnerAIReport(ownerId: string): Promise<{
     }
 
     // Generate AI newsletter report for this owner's properties
-    const newsletter = await generateNewsletterReport(period, {
-      ownerIds: [ownerId],
-      propertyIds: propertyIds.length > 0 ? propertyIds : undefined,
-    }, owner.name)
+    let newsletter
+    try {
+      newsletter = await generateNewsletterReport(period, {
+        ownerIds: [ownerId],
+        propertyIds: propertyIds.length > 0 ? propertyIds : undefined,
+      }, owner.name)
+    } catch (error: any) {
+      console.error(`Failed to generate AI report for owner ${owner.name}:`, error)
+      // Return error with helpful message
+      let errorMessage = error.message || 'Failed to generate AI report'
+      if (errorMessage.includes('x-api-key') || errorMessage.includes('authentication_error') || errorMessage.includes('401')) {
+        errorMessage = 'AI API authentication failed. Please check your API key in Settings → AI Providers.'
+      } else if (errorMessage.includes('API key not configured')) {
+        errorMessage = 'AI API key is not configured. Please add it in Settings → AI Providers.'
+      }
+      return { success: false, error: errorMessage }
+    }
 
     // Generate HTML email
     const emailHTML = await generateNewsletterEmailHTML(newsletter)
