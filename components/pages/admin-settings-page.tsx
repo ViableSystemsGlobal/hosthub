@@ -1546,6 +1546,7 @@ function DiagnosticsTab() {
   const [aiReportSendResult, setAiReportSendResult] = useState<any>(null)
   const [showSendConfirmDialog, setShowSendConfirmDialog] = useState(false)
   const [sendReportType, setSendReportType] = useState<'owners' | 'company'>('owners')
+  const [sendReportPeriod, setSendReportPeriod] = useState<'yesterday' | 'last-week' | 'last-month' | 'current-year'>('last-week')
 
   const runDiagnostics = async () => {
     try {
@@ -1785,6 +1786,22 @@ function DiagnosticsTab() {
                     : 'Are you sure you want to send a company-wide AI report to all admins and managers? This will send actual reports via email.'}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="report-period">Report Period</Label>
+                  <Select value={sendReportPeriod} onValueChange={(v: any) => setSendReportPeriod(v)}>
+                    <SelectTrigger id="report-period">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="last-week">Last Week</SelectItem>
+                      <SelectItem value="last-month">Last Month</SelectItem>
+                      <SelectItem value="current-year">Current Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
@@ -1797,7 +1814,10 @@ function DiagnosticsTab() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
-                        body: JSON.stringify({ type: sendReportType }),
+                        body: JSON.stringify({ 
+                          type: sendReportType,
+                          period: sendReportPeriod,
+                        }),
                       })
                       const data = await res.json()
                       if (res.ok) {

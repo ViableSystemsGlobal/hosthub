@@ -6,7 +6,7 @@
 import { prisma } from '@/lib/prisma'
 import { generateChatCompletion, ChatMessage } from '@/lib/ai/providers'
 import { formatCurrency, Currency, convertCurrency, getFxRate } from '@/lib/currency'
-import { format, startOfDay, endOfDay, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+import { format, startOfDay, endOfDay, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns'
 
 /**
  * Format currency showing both USD and GHS with exchange rate
@@ -44,7 +44,7 @@ export interface NewsletterSection {
  * Generate AI-powered newsletter report
  */
 export async function generateNewsletterReport(
-  period: 'daily' | 'weekly' | 'monthly',
+  period: 'daily' | 'weekly' | 'monthly' | 'yesterday' | 'last-week' | 'last-month' | 'current-year',
   filters?: {
     propertyIds?: string[]
     ownerIds?: string[]
@@ -59,18 +59,33 @@ export async function generateNewsletterReport(
 
   switch (period) {
     case 'daily':
-      startDate = startOfDay(now)
-      periodLabel = 'Today'
+    case 'yesterday':
+      if (period === 'yesterday') {
+        const yesterday = subDays(now, 1)
+        startDate = startOfDay(yesterday)
+        endDate = endOfDay(yesterday)
+        periodLabel = 'Yesterday'
+      } else {
+        startDate = startOfDay(now)
+        periodLabel = 'Today'
+      }
       break
     case 'weekly':
+    case 'last-week':
       startDate = startOfWeek(subWeeks(now, 1))
       endDate = endOfWeek(subWeeks(now, 1))
       periodLabel = 'Last Week'
       break
     case 'monthly':
+    case 'last-month':
       startDate = startOfMonth(subMonths(now, 1))
       endDate = endOfMonth(subMonths(now, 1))
       periodLabel = 'Last Month'
+      break
+    case 'current-year':
+      startDate = startOfYear(now)
+      endDate = endOfDay(now)
+      periodLabel = 'Current Year'
       break
   }
 

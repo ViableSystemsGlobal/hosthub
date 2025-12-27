@@ -56,7 +56,16 @@ export async function POST(request: NextRequest) {
     await requireAdmin(request)
 
     const body = await request.json().catch(() => ({}))
-    const { type = 'owners' } = body
+    const { type = 'owners', period = 'last-week' } = body
+
+    // Map period to internal format
+    const periodMap: Record<string, 'daily' | 'weekly' | 'monthly' | 'yesterday' | 'last-week' | 'last-month' | 'current-year'> = {
+      'yesterday': 'yesterday',
+      'last-week': 'last-week',
+      'last-month': 'last-month',
+      'current-year': 'current-year',
+    }
+    const reportPeriod = periodMap[period] || 'last-week'
 
     if (type === 'company') {
       // Send company-wide report
@@ -68,7 +77,7 @@ export async function POST(request: NextRequest) {
       // Generate company-wide report (no owner filter)
       let newsletter
       try {
-        newsletter = await generateNewsletterReport('weekly', undefined, undefined)
+        newsletter = await generateNewsletterReport(reportPeriod, undefined, undefined)
       } catch (error: any) {
         console.error('Failed to generate company-wide AI report:', error)
         let errorMessage = error.message || 'Failed to generate AI report'

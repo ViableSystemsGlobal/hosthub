@@ -19,7 +19,10 @@ export interface OwnerAIReportConfig {
 /**
  * Send AI report to a specific owner
  */
-export async function sendOwnerAIReport(ownerId: string): Promise<{
+export async function sendOwnerAIReport(
+  ownerId: string,
+  period?: 'daily' | 'weekly' | 'monthly' | 'yesterday' | 'last-week' | 'last-month' | 'current-year'
+): Promise<{
   success: boolean
   error?: string
 }> {
@@ -185,7 +188,9 @@ export async function executeOwnerAIReports(): Promise<{
 /**
  * Execute all owner AI reports for testing (sends to all enabled owners regardless of nextSend)
  */
-export async function executeOwnerAIReportsForTesting(): Promise<{
+export async function executeOwnerAIReportsForTesting(
+  period?: 'daily' | 'weekly' | 'monthly' | 'yesterday' | 'last-week' | 'last-month' | 'current-year'
+): Promise<{
   executed: number
   success: number
   failed: number
