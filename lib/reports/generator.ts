@@ -976,3 +976,124 @@ export async function generateElectricityReport(
   return { headers, rows, summary }
 }
 
+/**
+ * Generate issues report
+ */
+export async function generateIssuesReport(
+  filters: ReportFilters,
+  fields?: string[]
+): Promise<ReportData> {
+  const where: any = {}
+
+  // Date filters
+  if (filters.dateFrom || filters.dateTo) {
+    where.createdAt = {}
+    if (filters.dateFrom) {
+      where.createdAt.gte = new Date(filters.dateFrom)
+    }
+    if (filters.dateTo) {
+      where.createdAt.lte = new Date(filters.dateTo)
+    }
+  }
+
+  // Property filters
+  if (filters.propertyIds && filters.propertyIds.length > 0) {
+    where.propertyId = { in: filters.propertyIds }
+  }
+
+  // Owner filters (via property)
+  if (filters.ownerIds && filters.ownerIds.length > 0) {
+    where.Property = {
+      ownerId: { in: filters.ownerIds },
+    }
+  }
+
+  // Status filters
+  if (filters.status && filters.status.length > 0) {
+    where.status = { in: filters.status }
+  }
+
+  const issues = await prisma.issue.findMany({
+    where,
+    include: {
+      Property: {
+        select: {
+          name: true,
+          nickname: true,
+        },
+      },
+      AssignedContact: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  const defaultFields = [
+    'createdAt',
+    'property',
+    'title',
+    'description',
+    'status',
+    'priority',
+    'assignedTo',
+    'resolvedAt',
+  ]
+
+  const selectedFields = fields && fields.length > 0 ? fields : defaultFields
+
+  const headers = selectedFields.map(field => {
+    const fieldMap: Record<string, string> = {
+      createdAt: 'Date Reported',
+      property: 'Property',
+      title: 'Title',
+      description: 'Description',
+      status: 'Status',
+      priority: 'Priority',
+      assignedTo: 'Assigned To',
+      resolvedAt: 'Resolved At',
+    }
+    return fieldMap[field] || field
+  })
+
+  const rows = issues.map((issue) => {
+    return selectedFields.map((field) => {
+      switch (field) {
+        case 'createdAt':
+          return format(new Date(issue.createdAt), 'yyyy-MM-dd')
+        case 'property':
+          return issue.Property?.nickname || issue.Property?.name || '-'
+        case 'title':
+          return issue.title || '-'
+        case 'description':
+          return issue.description || '-'
+        case 'status':
+          return issue.status || '-'
+        case 'priority':
+          return issue.priority || '-'
+        case 'assignedTo':
+          return issue.AssignedContact?.name || '-'
+        case 'resolvedAt':
+          return issue.resolvedAt ? format(new Date(issue.resolvedAt), 'yyyy-MM-dd') : '-'
+        default:
+          return '-'
+      }
+    })
+  })
+
+  const summary = {
+    totalIssues: issues.length,
+    openIssues: issues.filter(i => i.status === 'OPEN').length,
+    resolvedIssues: issues.filter(i => i.status === 'RESOLVED').length,
+    highPriority: issues.filter(i => i.priority === 'HIGH').length,
+    mediumPriority: issues.filter(i => i.priority === 'MEDIUM').length,
+    lowPriority: issues.filter(i => i.priority === 'LOW').length,
+  }
+
+  return { headers, rows, summary }
+}
+

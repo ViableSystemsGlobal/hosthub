@@ -10,6 +10,7 @@ import {
   generateCleaningTasksReport,
   generateCheckInReport,
   generateElectricityReport,
+  generateIssuesReport,
 } from '@/lib/reports/generator'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { AllReportsPDF } from '@/components/pdf/all-reports-pdf'
@@ -23,6 +24,7 @@ const allReportTypes = [
   'CLEANING_TASKS',
   'CHECK_IN',
   'ELECTRICITY',
+  'ISSUES',
 ] as const
 
 const reportTitles: Record<string, string> = {
@@ -34,6 +36,7 @@ const reportTitles: Record<string, string> = {
   CLEANING_TASKS: 'Cleaning Tasks',
   CHECK_IN: 'Check-Ins',
   ELECTRICITY: 'Electricity',
+  ISSUES: 'Issues',
 }
 
 export async function POST(request: NextRequest) {
@@ -99,6 +102,9 @@ export async function POST(request: NextRequest) {
         case 'ELECTRICITY':
           data = await generateElectricityReport(finalFilters, undefined)
           break
+        case 'ISSUES':
+          data = await generateIssuesReport(finalFilters, undefined)
+          break
         default:
           break
       }
@@ -114,13 +120,71 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Transform flat results into reportsByProperty format
+    // Get all properties for grouping
+    const propertyIds = finalFilters.propertyIds || []
+    const properties = propertyIds.length > 0
+      ? await prisma.property.findMany({
+          where: { id: { in: propertyIds } },
+          select: { id: true, name: true, nickname: true, photos: true },
+        })
+      : await prisma.property.findMany({
+          where: finalFilters.ownerIds ? { ownerId: { in: finalFilters.ownerIds } } : {},
+          select: { id: true, name: true, nickname: true, photos: true },
+        })
+
+    // Transform results into reportsByProperty format
+    // First, create "All Properties" entry with all reports
     const reportsByProperty: Record<string, any> = {
       'all-properties': {
         propertyId: 'all-properties',
         propertyName: 'All Properties',
         reports: results,
       },
+    }
+
+    // Then, create per-property entries with filtered reports
+    for (const property of properties) {
+      const propertyReports: Record<string, any> = {}
+      
+      // Filter each report type by property
+      for (const [reportType, reportData] of Object.entries(results)) {
+        if (reportData.rows && Array.isArray(reportData.rows)) {
+          // Find property column index
+          const propertyHeaderIndex = reportData.headers?.findIndex((h: string) => 
+            h.toLowerCase().includes('property')
+          ) ?? -1
+          
+          if (propertyHeaderIndex >= 0) {
+            // Filter rows for this property
+            const propertyRows = reportData.rows.filter((row: any[]) => {
+              const propertyValue = row[propertyHeaderIndex] || ''
+              const propertyName = property.nickname || property.name
+              return propertyValue.includes(propertyName) || 
+                     propertyValue === property.id ||
+                     propertyValue === property.name
+            })
+            
+            if (propertyRows.length > 0) {
+              propertyReports[reportType] = {
+                ...reportData,
+                rows: propertyRows,
+              }
+            }
+          } else {
+            // If no property column, include all rows (for reports that don't have property breakdown)
+            propertyReports[reportType] = reportData
+          }
+        }
+      }
+      
+      if (Object.keys(propertyReports).length > 0) {
+        reportsByProperty[property.id] = {
+          propertyId: property.id,
+          propertyName: property.nickname || property.name,
+          propertyImage: property.photos && property.photos.length > 0 ? property.photos[0] : undefined,
+          reports: propertyReports,
+        }
+      }
     }
 
     // Fetch logo and theme color
