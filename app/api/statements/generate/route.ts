@@ -58,14 +58,14 @@ export async function POST(request: NextRequest) {
     })
 
     // Calculate totals
-    let grossRevenue = 0
+    // Revenue = baseAmount + cleaningFee (total collected from guest)
+    // This represents total revenue regardless of who received it
+    let revenue = 0
 
     // Separate bookings by payment flow
     const companyBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'COMPANY')
     const ownerBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'OWNER')
 
-    // Gross revenue = baseAmount + cleaningFee (total collected from guest)
-    // This represents total revenue regardless of who received it
     for (const booking of bookings) {
       const grossBookingAmount = booking.baseAmount + booking.cleaningFee
       const amountInDisplay = await convertCurrency(
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         booking.currency,
         currency
       )
-      grossRevenue += amountInDisplay
+      revenue += amountInDisplay
     }
 
     // Separate expenses by who paid
@@ -172,12 +172,22 @@ export async function POST(request: NextRequest) {
       propertyCommissions[property.id] += commission
     }
 
-    // Net to owner calculation:
-    // - For COMPANY bookings: we owe them = companyRevenue - companyPaidExpenses - companyCommission (positive)
-    // - For OWNER bookings: they owe us = ownerCommission (negative, so subtract it)
-    // - Owner-paid expenses: we owe them back (reimbursement) = ownerPaidExpenses (positive, so add it)
-    // - Total net = what we owe minus what they owe us
-    const netFromCompany = companyRevenue - companyPaidExpenses - companyCommission
+    // Net to owner calculation (correct flow):
+    // 1. Revenue (total bookings)
+    // 2. Commission (calculated on revenue)
+    // 3. Gross (Revenue - Commission)
+    // 4. Expenses (deducted from gross)
+    // 5. Net (Gross - Expenses + owner-paid expense reimbursement)
+    
+    // Commission is calculated on revenue (before expenses)
+    // Gross revenue after commission
+    const grossAfterCommission = revenue - commissionAmount
+    
+    // Net calculation:
+    // - For COMPANY bookings: Revenue - Commission - Company Expenses = what we owe owner
+    // - For OWNER bookings: Owner owes us commission (negative, so subtract)
+    // - Owner-paid expenses: we owe them back (reimbursement) = positive, so add
+    const netFromCompany = companyRevenue - companyCommission - companyPaidExpenses
     const netToOwner = netFromCompany - ownerCommission + ownerPaidExpenses
 
     // Opening balance is always 0 for each period (fresh start)
@@ -188,6 +198,8 @@ export async function POST(request: NextRequest) {
     const commissionsPayable = owner.OwnerWallet?.commissionsPayable || 0
 
     // Create draft statement
+    // Note: grossRevenue field stores total revenue (before commission)
+    // The flow is: Revenue → Commission → Gross (Revenue - Commission) → Expenses → Net
     const statement = await prisma.statement.create({
       data: {
         id: crypto.randomUUID(),
@@ -196,7 +208,7 @@ export async function POST(request: NextRequest) {
         periodEnd: endDate,
         status: StatementStatus.DRAFT,
         displayCurrency: currency,
-        grossRevenue,
+        grossRevenue: revenue, // Total revenue (before commission)
         totalExpenses,
         commissionAmount,
         netToOwner,

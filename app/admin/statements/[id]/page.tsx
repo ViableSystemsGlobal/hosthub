@@ -183,7 +183,7 @@ export default function StatementDetailPage({ params }: { params: Promise<{ id: 
             <div className="space-y-2">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Revenue</h4>
               <div className="flex justify-between">
-                <span>Gross Revenue (Total):</span>
+                <span>Revenue (Total):</span>
                 <span className="font-medium">
                   {formatCurrency(statement.grossRevenue, statement.displayCurrency)}
                 </span>
@@ -200,14 +200,6 @@ export default function StatementDetailPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Expenses */}
-            <div className="flex justify-between">
-              <span>Total Expenses:</span>
-              <span className="font-medium">
-                {formatCurrency(statement.totalExpenses, statement.displayCurrency)}
-              </span>
             </div>
 
             {/* Commission Breakdown */}
@@ -232,6 +224,25 @@ export default function StatementDetailPage({ params }: { params: Promise<{ id: 
               )}
             </div>
 
+            {/* Gross After Commission */}
+            <div className="flex justify-between">
+              <span>Gross (After Commission):</span>
+              <span className="font-medium">
+                {formatCurrency(
+                  statement.grossRevenue - statement.commissionAmount,
+                  statement.displayCurrency
+                )}
+              </span>
+            </div>
+
+            {/* Expenses */}
+            <div className="flex justify-between">
+              <span>Total Expenses:</span>
+              <span className="font-medium">
+                {formatCurrency(statement.totalExpenses, statement.displayCurrency)}
+              </span>
+            </div>
+
             {/* Net Calculation Explanation */}
             {(statement.companyRevenue > 0 || statement.ownerRevenue > 0) && (
               <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-1">
@@ -240,7 +251,7 @@ export default function StatementDetailPage({ params }: { params: Promise<{ id: 
                   <span>Company bookings net (we owe owner):</span>
                   <span className="text-green-600">
                     +{formatCurrency(
-                      (statement.companyRevenue || 0) - statement.totalExpenses - (statement.companyCommission || 0),
+                      (statement.companyRevenue || 0) - (statement.companyCommission || 0) - statement.totalExpenses,
                       statement.displayCurrency
                     )}
                   </span>

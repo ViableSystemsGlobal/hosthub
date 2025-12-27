@@ -164,7 +164,7 @@ export function StatementPDF({ statement, logoUrl, themeColor = '#f97316' }: Sta
 
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
-            <Text>Gross Revenue (Total):</Text>
+            <Text>Revenue (Total):</Text>
             <Text>
               {formatCurrency(statement.grossRevenue, statement.displayCurrency)}
             </Text>
@@ -185,15 +185,6 @@ export function StatementPDF({ statement, logoUrl, themeColor = '#f97316' }: Sta
               </View>
             </>
           )}
-          <View style={styles.summaryRow}>
-            <Text>Total Expenses:</Text>
-            <Text>
-              {formatCurrency(
-                statement.totalExpenses,
-                statement.displayCurrency
-              )}
-            </Text>
-          </View>
           <View style={styles.summaryRow}>
             <Text>Commission (Total):</Text>
             <Text>
@@ -219,6 +210,24 @@ export function StatementPDF({ statement, logoUrl, themeColor = '#f97316' }: Sta
               </View>
             </>
           )}
+          <View style={styles.summaryRow}>
+            <Text>Gross (After Commission):</Text>
+            <Text>
+              {formatCurrency(
+                statement.grossRevenue - statement.commissionAmount,
+                statement.displayCurrency
+              )}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text>Total Expenses:</Text>
+            <Text>
+              {formatCurrency(
+                statement.totalExpenses,
+                statement.displayCurrency
+              )}
+            </Text>
+          </View>
           <View style={[styles.summaryRow, styles.total]}>
             <Text>Net to Owner:</Text>
             <Text>
