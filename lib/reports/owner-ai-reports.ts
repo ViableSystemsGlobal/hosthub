@@ -164,7 +164,8 @@ export async function executeOwnerAIReports(): Promise<{
   for (const owner of owners) {
     try {
       executed++
-      const result = await sendOwnerAIReport(owner.id, period)
+      // For cron jobs, use owner's configured frequency (don't pass period)
+      const result = await sendOwnerAIReport(owner.id)
 
       if (result.success) {
         success++
