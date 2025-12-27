@@ -264,7 +264,7 @@ async function collectReportData(
  */
 async function generateAINarrative(
   data: any,
-  period: 'daily' | 'weekly' | 'monthly',
+  period: 'daily' | 'weekly' | 'monthly' | 'yesterday' | 'last-week' | 'last-month' | 'current-year',
   periodLabel: string,
   ownerName?: string
 ): Promise<{
