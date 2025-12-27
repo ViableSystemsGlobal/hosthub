@@ -67,7 +67,16 @@ export async function POST(request: NextRequest) {
     const ownerBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'OWNER')
 
     for (const booking of bookings) {
-      const grossBookingAmount = booking.baseAmount + booking.cleaningFee
+      // Revenue = baseAmount + cleaningFee (total collected from guest)
+      // Ensure we have valid amounts
+      const baseAmount = booking.baseAmount || 0
+      const cleaningFee = booking.cleaningFee || 0
+      const grossBookingAmount = baseAmount + cleaningFee
+      
+      if (grossBookingAmount <= 0) {
+        console.warn(`Booking ${booking.id} has zero or negative revenue: baseAmount=${baseAmount}, cleaningFee=${cleaningFee}`)
+      }
+      
       const amountInDisplay = await convertCurrency(
         grossBookingAmount,
         booking.currency,
@@ -152,6 +161,17 @@ export async function POST(request: NextRequest) {
 
     // Total commission = sum of all commissions (on all revenue before expenses)
     const commissionAmount = companyCommission + ownerCommission
+    
+    // Validate: revenue should equal companyRevenue + ownerRevenue
+    const calculatedRevenue = companyRevenue + ownerRevenue
+    if (Math.abs(revenue - calculatedRevenue) > 0.01) {
+      console.warn(`Revenue mismatch: total=${revenue}, sum=${calculatedRevenue}. Using calculated sum.`)
+      revenue = calculatedRevenue // Use the sum to ensure accuracy
+    }
+    
+    // Debug: Log revenue calculation
+    console.log(`[Statement] Revenue calculation: total=${revenue.toFixed(2)}, company=${companyRevenue.toFixed(2)}, owner=${ownerRevenue.toFixed(2)}, bookings=${bookings.length}`)
+    
     const propertyCommissions: Record<string, number> = {}
     
     // Calculate property-level commissions for display
