@@ -84,15 +84,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Get all admin and manager emails
-      const users = await prisma.user.findMany({
+      const allUsers = await prisma.user.findMany({
         where: {
           role: {
             in: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'],
-          },
-          email: {
-            not: {
-              equals: null,
-            },
           },
         },
         select: {
@@ -100,6 +95,16 @@ export async function POST(request: NextRequest) {
           name: true,
         },
       })
+
+      // Filter out users without email addresses
+      const users = allUsers.filter((user) => user.email !== null && user.email !== undefined)
+
+      if (users.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'No users with email addresses found for company-wide report',
+        }, { status: 400 })
+      }
 
       const emailHTML = await generateNewsletterEmailHTML(newsletter)
       const results = await Promise.allSettled(
