@@ -99,38 +99,7 @@ export async function POST(request: NextRequest) {
     
     const totalExpenses = companyPaidExpenses + ownerPaidExpenses
 
-    // Calculate commission (rate * gross revenue per property)
-    // Commission is calculated on gross revenue (baseAmount + cleaningFee)
-    let commissionAmount = 0
-    const propertyCommissions: Record<string, number> = {}
-
-    for (const booking of bookings) {
-      const property = booking.Property
-      const commissionRate = property.defaultCommissionRate || 0.15
-      const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-      const grossBookingInDisplay = await convertCurrency(
-        grossBookingAmount,
-        booking.currency,
-        currency
-      )
-      const commission = grossBookingInDisplay * commissionRate
-
-      if (!propertyCommissions[property.id]) {
-        propertyCommissions[property.id] = 0
-      }
-      propertyCommissions[property.id] += commission
-      commissionAmount += commission
-    }
-
-    // Calculate net to owner based on payment flow:
-    // COMPANY: We received payment, we owe owner (gross - expenses - commission) = positive
-    // OWNER: Owner received payment, they owe us commission only = negative (they owe us)
-    // 
-    // Net calculation:
-    // - Company bookings: We owe owner = grossRevenue - expenses - commission (positive)
-    // - Owner bookings: Owner owes us = commission only (negative)
-    // - Total net = (what we owe) - (what they owe us)
-    
+    // Calculate revenue by payment type (gross revenue = baseAmount + cleaningFee)
     let companyRevenue = 0
     for (const booking of companyBookings) {
       const grossBookingAmount = booking.baseAmount + booking.cleaningFee
@@ -154,6 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate commission for each payment type
+    // Commission is calculated on gross revenue (baseAmount + cleaningFee) BEFORE expenses
     let companyCommission = 0
     for (const booking of companyBookings) {
       const property = booking.Property
@@ -178,6 +148,28 @@ export async function POST(request: NextRequest) {
         currency
       )
       ownerCommission += grossBookingInDisplay * commissionRate
+    }
+
+    // Total commission = sum of all commissions (on all revenue before expenses)
+    const commissionAmount = companyCommission + ownerCommission
+    const propertyCommissions: Record<string, number> = {}
+    
+    // Calculate property-level commissions for display
+    for (const booking of bookings) {
+      const property = booking.Property
+      const commissionRate = property.defaultCommissionRate || 0.15
+      const grossBookingAmount = booking.baseAmount + booking.cleaningFee
+      const grossBookingInDisplay = await convertCurrency(
+        grossBookingAmount,
+        booking.currency,
+        currency
+      )
+      const commission = grossBookingInDisplay * commissionRate
+
+      if (!propertyCommissions[property.id]) {
+        propertyCommissions[property.id] = 0
+      }
+      propertyCommissions[property.id] += commission
     }
 
     // Net to owner calculation:
