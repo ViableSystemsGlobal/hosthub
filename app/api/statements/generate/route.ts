@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const endDate = new Date(periodEnd)
     const currency = (displayCurrency || owner.preferredCurrency) as Currency
 
-    // Get all bookings in period (completed)
+    // Get all bookings in period (matching dashboard logic - all statuses)
     const bookings = await prisma.booking.findMany({
       where: {
         ownerId,
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
           gte: startDate,
           lte: endDate,
         },
-        status: 'COMPLETED',
+        // No status filter - include all bookings like dashboard does
       },
       include: { Property: true },
     })
