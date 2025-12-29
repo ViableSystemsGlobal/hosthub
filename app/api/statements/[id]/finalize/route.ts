@@ -126,15 +126,49 @@ export async function POST(
         },
         include: {
           Owner: true,
-          StatementLine: true,
+          StatementLine: {
+            orderBy: { createdAt: 'asc' },
+          },
         },
       })
+
+      // Fetch booking and expense details for statement lines
+      const bookingIds = finalStatement.StatementLine
+        .filter(line => line.type === 'booking' && line.referenceId)
+        .map(line => line.referenceId!)
+      
+      const expenseIds = finalStatement.StatementLine
+        .filter(line => line.type === 'expense' && line.referenceId)
+        .map(line => line.referenceId!)
+
+      const [bookings, expenses] = await Promise.all([
+        bookingIds.length > 0
+          ? tx.booking.findMany({
+              where: { id: { in: bookingIds } },
+              include: { Property: true },
+            })
+          : [],
+        expenseIds.length > 0
+          ? tx.expense.findMany({
+              where: { id: { in: expenseIds } },
+              include: { Property: true },
+            })
+          : [],
+      ])
+
+      // Create maps for quick lookup
+      const bookingMap = new Map(bookings.map(b => [b.id, b]))
+      const expenseMap = new Map(expenses.map(e => [e.id, e]))
 
       // Generate PDF - map relation names for PDF component
       const statementForPDF = {
         ...finalStatement,
         owner: finalStatement.Owner,
         statementLines: finalStatement.StatementLine,
+        bookings: bookings,
+        expenses: expenses,
+        bookingMap: Object.fromEntries(bookingMap),
+        expenseMap: Object.fromEntries(expenseMap),
       }
       
       // Fetch logo URL
