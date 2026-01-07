@@ -6,12 +6,13 @@ const DEFAULT_TEMPLATES = [
   {
     name: 'Booking Confirmation',
     type: 'booking_confirmation',
-    subject: 'Booking Confirmation - {{propertyName}}',
-    body: `Dear {{guestName}},
+    subject: 'New Booking at {{propertyName}}',
+    body: `Dear {{ownerName}},
 
-Thank you for your booking! We're excited to host you at {{propertyName}}.
+A new booking has been created for your property {{propertyName}}.
 
 Booking Details:
+- Guest: {{guestName}}
 - Check-in: {{checkInDate}}
 - Check-out: {{checkOutDate}}
 - Nights: {{nights}}
@@ -19,33 +20,35 @@ Booking Details:
 
 Booking ID: {{bookingId}}
 
-We look forward to welcoming you!
+You can view and manage this booking in your dashboard.
 
 Best regards,
 HostHub Team`,
-    variables: ['guestName', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'totalPayout', 'currency', 'bookingId'],
+    variables: ['ownerName', 'guestName', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'totalPayout', 'currency', 'bookingId'],
     isDefault: true,
     isActive: true,
   },
   {
     name: 'Booking Reminder',
     type: 'booking_reminder',
-    subject: 'Reminder: Your stay at {{propertyName}} starts {{checkInDate}}',
-    body: `Dear {{guestName}},
+    subject: 'Booking Reminder: {{propertyName}} - Check-in {{checkInDate}}',
+    body: `Dear {{ownerName}},
 
-This is a friendly reminder that your stay at {{propertyName}} is coming up soon!
+This is a reminder about an upcoming booking at {{propertyName}}.
 
-Check-in: {{checkInDate}}
-Check-out: {{checkOutDate}}
-Duration: {{nights}} nights
+Booking Details:
+- Guest: {{guestName}}
+- Check-in: {{checkInDate}}
+- Check-out: {{checkOutDate}}
+- Duration: {{nights}} nights
 
 Booking ID: {{bookingId}}
 
-We're looking forward to hosting you!
+Please ensure the property is ready for check-in.
 
 Best regards,
 HostHub Team`,
-    variables: ['guestName', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'bookingId'],
+    variables: ['ownerName', 'guestName', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'bookingId'],
     isDefault: true,
     isActive: true,
   },

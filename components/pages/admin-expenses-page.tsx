@@ -30,6 +30,7 @@ import { formatCurrency, convertCurrency } from '@/lib/currency'
 import { ExpenseCategory, Currency } from '@prisma/client'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { Pagination } from '@/components/ui/pagination'
 
 interface Expense {
   id: string
@@ -57,6 +58,8 @@ export function AdminExpensesPage() {
   const [currentMonthTotal, setCurrentMonthTotal] = useState(0)
   const [prevMonthTotal, setPrevMonthTotal] = useState(0)
   const [currentMonthExpenses, setCurrentMonthExpenses] = useState<Expense[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(10)
   const [filters, setFilters] = useState({
     propertyId: '',
     category: '',
@@ -471,7 +474,7 @@ export function AdminExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
+                {expenses.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((expense) => (
                 <TableRow key={expense.id}>
                   <TableCell>
                     <button
@@ -523,6 +526,15 @@ export function AdminExpensesPage() {
               ))}
             </TableBody>
           </Table>
+          {expenses.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(expenses.length / pageSize)}
+              onPageChange={setCurrentPage}
+              pageSize={pageSize}
+              totalItems={expenses.length}
+            />
+          )}
         </CardContent>
       </Card>
       )}

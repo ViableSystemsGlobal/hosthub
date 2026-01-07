@@ -439,8 +439,11 @@ export async function sendBookingNotification(
   }
 
   // Prepare template variables
+  // Note: This email is sent to the OWNER, not the guest
+  // So we use ownerName instead of guestName in the greeting
   const templateVariables = {
-    guestName: booking.guestName || 'Guest',
+    ownerName: owner?.name || 'Property Owner',
+    guestName: booking.guestName || 'Guest', // Keep for reference in the message
     propertyName: propertyName,
     checkInDate: new Date(booking.checkInDate).toLocaleDateString(),
     checkOutDate: new Date(booking.checkOutDate).toLocaleDateString(),

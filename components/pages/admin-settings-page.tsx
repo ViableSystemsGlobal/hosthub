@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
-import { Save, Loader2, Send, Plus, Edit, Trash2, CheckSquare, X, RefreshCw } from 'lucide-react'
+import { Save, Loader2, Send, Plus, Edit, Trash2, CheckSquare, X, RefreshCw, Download, Upload } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -504,6 +504,7 @@ export function AdminSettingsPage() {
           <TabsTrigger value="email">Email (SMTP)</TabsTrigger>
           <TabsTrigger value="ai">AI Providers</TabsTrigger>
           <TabsTrigger value="cleaning-checklists">Cleaning Checklists</TabsTrigger>
+          <TabsTrigger value="backup-restore">Backup & Restore</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
@@ -1219,6 +1220,127 @@ export function AdminSettingsPage() {
 
         <TabsContent value="cleaning-checklists" className="space-y-4">
           <CleaningChecklistsManager />
+        </TabsContent>
+
+        <TabsContent value="backup-restore" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Backup & Restore</CardTitle>
+              <CardDescription>
+                Create backups of your data or restore from a previous backup
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Create Backup</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Download a complete backup of all your data. This includes all properties, bookings, expenses, statements, and more.
+                    Sensitive credentials (passwords, API keys) are excluded for security.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/admin/backup')
+                        if (!res.ok) {
+                          const error = await res.json()
+                          throw new Error(error.error || 'Failed to create backup')
+                        }
+                        const blob = await res.blob()
+                        const url = window.URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        const contentDisposition = res.headers.get('Content-Disposition')
+                        const filename = contentDisposition
+                          ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+                          : `hosthub-backup-${new Date().toISOString().split('T')[0]}.json`
+                        a.download = filename
+                        document.body.appendChild(a)
+                        a.click()
+                        window.URL.revokeObjectURL(url)
+                        document.body.removeChild(a)
+                        toast.success('Backup created', 'Your backup has been downloaded successfully')
+                      } catch (error: any) {
+                        console.error('Backup error:', error)
+                        toast.error('Backup failed', error.message)
+                      }
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Backup
+                  </Button>
+                </div>
+
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-2">Restore Backup</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Restore your data from a previous backup file. This will replace all existing data with the backup data.
+                    <strong className="text-red-600"> This action cannot be undone!</strong>
+                  </p>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="backupFile">Select Backup File</Label>
+                      <Input
+                        id="backupFile"
+                        type="file"
+                        accept=".json"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+
+                          try {
+                            const text = await file.text()
+                            const backup = JSON.parse(text)
+
+                            if (!backup.data || !backup.version) {
+                              toast.error('Invalid backup file', 'The selected file is not a valid backup')
+                              return
+                            }
+
+                            const confirmed = confirm(
+                              `Are you sure you want to restore this backup?\n\n` +
+                              `Created: ${backup.createdAt || 'Unknown'}\n` +
+                              `Version: ${backup.version}\n\n` +
+                              `This will replace ALL existing data. This action cannot be undone!\n\n` +
+                              `Do you want to clear existing data before restoring?`
+                            )
+
+                            if (!confirmed) {
+                              return
+                            }
+
+                            const clearExisting = confirm(
+                              'Clear all existing data before restoring? (Recommended for clean restore)'
+                            )
+
+                            const res = await fetch('/api/admin/restore', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ backup, clearExisting }),
+                            })
+
+                            const data = await res.json()
+
+                            if (!res.ok) {
+                              throw new Error(data.error || 'Failed to restore backup')
+                            }
+
+                            toast.success('Backup restored', 'Your data has been restored successfully')
+                            // Reset file input
+                            e.target.value = ''
+                          } catch (error: any) {
+                            console.error('Restore error:', error)
+                            toast.error('Restore failed', error.message)
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="general" className="space-y-4">

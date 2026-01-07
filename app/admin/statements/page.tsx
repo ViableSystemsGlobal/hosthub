@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
-import { Plus, Eye, FileDown, FileText, DollarSign, CheckCircle, Clock } from 'lucide-react'
+import { Plus, Eye, FileDown, FileText, DollarSign, CheckCircle, Clock, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { Currency } from '@prisma/client'
 // Define StatementStatus locally to avoid build issues if Prisma client is stale
@@ -25,6 +25,7 @@ enum StatementStatus {
 }
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { toast } from '@/lib/toast'
 
 interface Statement {
   id: string
@@ -106,9 +107,11 @@ export default function StatementsPage() {
           icon={<Clock className="h-4 w-4 text-muted-foreground" />}
         />
         <MetricCard
-          title="Total Net to Owners"
+          title="Total Net to Owners (Finalized)"
           value={formatCurrency(
-            statements.reduce((sum, s) => sum + s.netToOwner, 0),
+            statements
+              .filter(s => s.status === StatementStatus.FINALIZED)
+              .reduce((sum, s) => sum + s.netToOwner, 0),
             Currency.GHS
           )}
           icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
@@ -202,6 +205,34 @@ export default function StatementsPage() {
                             <FileDown className="w-4 h-4" />
                           </Button>
                         </a>
+                      )}
+                      {statement.status === StatementStatus.DRAFT && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (!confirm(`Are you sure you want to delete this draft statement for ${statement.Owner.name}? This action cannot be undone.`)) {
+                              return
+                            }
+                            try {
+                              const res = await fetch(`/api/statements/${statement.id}`, {
+                                method: 'DELETE',
+                              })
+                              const data = await res.json()
+                              if (!res.ok) {
+                                throw new Error(data.error || 'Failed to delete statement')
+                              }
+                              toast.success('Statement deleted', 'The statement has been deleted successfully')
+                              fetchStatements()
+                            } catch (error: any) {
+                              console.error('Failed to delete statement:', error)
+                              toast.error('Delete failed', error.message)
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       )}
                     </div>
                   </TableCell>

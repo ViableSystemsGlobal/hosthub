@@ -46,9 +46,7 @@ export async function GET(
       where: { id },
       include: {
         Owner: true,
-        StatementLine: {
-          orderBy: { createdAt: 'asc' },
-        },
+        StatementLine: true,
       },
     })
 
@@ -61,43 +59,11 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Fetch booking and expense details for statement lines
-    const bookingIds = statement.StatementLine
-      .filter(line => line.type === 'booking' && line.referenceId)
-      .map(line => line.referenceId!)
-    
-    const expenseIds = statement.StatementLine
-      .filter(line => line.type === 'expense' && line.referenceId)
-      .map(line => line.referenceId!)
-
-    const [bookings, expenses] = await Promise.all([
-      bookingIds.length > 0
-        ? prisma.booking.findMany({
-            where: { id: { in: bookingIds } },
-            include: { Property: true },
-          })
-        : [],
-      expenseIds.length > 0
-        ? prisma.expense.findMany({
-            where: { id: { in: expenseIds } },
-            include: { Property: true },
-          })
-        : [],
-    ])
-
-    // Create maps for quick lookup
-    const bookingMap = new Map(bookings.map(b => [b.id, b]))
-    const expenseMap = new Map(expenses.map(e => [e.id, e]))
-
     // Map relation names for PDF component (expects lowercase)
     const statementForPDF = {
       ...statement,
       owner: statement.Owner,
       statementLines: statement.StatementLine,
-      bookings: bookings,
-      expenses: expenses,
-      bookingMap: Object.fromEntries(bookingMap),
-      expenseMap: Object.fromEntries(expenseMap),
     }
 
     // Fetch logo URL and theme color

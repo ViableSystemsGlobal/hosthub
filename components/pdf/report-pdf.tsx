@@ -147,9 +147,9 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
       </Page>
       
       {/* Report Content */}
-      <Page size="A4" orientation="landscape" style={styles.page} wrap>
-        <View style={styles.header} fixed>
-          <Text style={styles.title}>{getTitle()} ({data.length} {data.length === 1 ? 'item' : 'items'})</Text>
+      <Page size="A4" orientation="landscape" style={styles.page}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{getTitle()}</Text>
           <Text style={styles.subtitle}>Period: {getDateRange()}</Text>
           {filters?.property && <Text style={styles.subtitle}>Property: {filters.property}</Text>}
           {filters?.owner && <Text style={styles.subtitle}>Owner: {filters.owner}</Text>}
@@ -158,7 +158,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
         {reportType === 'bookings' && (
           <View style={styles.section}>
             <View style={styles.table}>
-              <View style={[styles.tableRow, styles.tableHeader]} fixed>
+              <View style={[styles.tableRow, styles.tableHeader]}>
                 <Text style={[styles.tableCell, { flex: 2 }]} wrap>Property</Text>
                 <Text style={styles.tableCell} wrap>Guest</Text>
                 <Text style={styles.tableCell} wrap>Check-in</Text>
@@ -168,7 +168,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
                 <Text style={styles.tableCell} wrap>Status</Text>
               </View>
               {data.map((booking: any, index: number) => (
-                <View key={index} style={styles.tableRow} wrap={false}>
+                <View key={index} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 2 }]} wrap>{booking.propertyName || booking.property || 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{booking.guestName || booking.guest || 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{booking.checkInDate ? format(new Date(booking.checkInDate), 'MMM d') : 'N/A'}</Text>
@@ -187,7 +187,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
         {reportType === 'expenses' && (
           <View style={styles.section}>
             <View style={styles.table}>
-              <View style={[styles.tableRow, styles.tableHeader]} fixed>
+              <View style={[styles.tableRow, styles.tableHeader]}>
                 <Text style={[styles.tableCell, { flex: 2 }]} wrap>Property</Text>
                 <Text style={styles.tableCell} wrap>Date</Text>
                 <Text style={styles.tableCell} wrap>Category</Text>
@@ -195,7 +195,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
                 <Text style={styles.tableCell} wrap>Amount</Text>
               </View>
               {data.map((expense: any, index: number) => (
-                <View key={index} style={styles.tableRow} wrap={false}>
+                <View key={index} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 2 }]} wrap>{expense.propertyName || expense.property || 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{expense.date ? format(new Date(expense.date), 'MMM d') : 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{expense.category || 'N/A'}</Text>
@@ -212,14 +212,14 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
         {reportType === 'revenue' && (
           <View style={styles.section}>
             <View style={styles.table}>
-              <View style={[styles.tableRow, styles.tableHeader]} fixed>
+              <View style={[styles.tableRow, styles.tableHeader]}>
                 <Text style={[styles.tableCell, { flex: 3 }]} wrap>Property</Text>
                 <Text style={styles.tableCell} wrap>Bookings</Text>
                 <Text style={styles.tableCell} wrap>Revenue</Text>
                 <Text style={styles.tableCell} wrap>Nights</Text>
               </View>
               {data.map((item: any, index: number) => (
-                <View key={index} style={styles.tableRow} wrap={false}>
+                <View key={index} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 3 }]} wrap>{item.property || 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{item.bookings || '0'}</Text>
                   <Text style={styles.tableCell} wrap>
@@ -235,7 +235,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
         {reportType === 'occupancy' && (
           <View style={styles.section}>
             <View style={styles.table}>
-              <View style={[styles.tableRow, styles.tableHeader]} fixed>
+              <View style={[styles.tableRow, styles.tableHeader]}>
                 <Text style={[styles.tableCell, { flex: 3 }]} wrap>Property</Text>
                 <Text style={styles.tableCell} wrap>Bookings</Text>
                 <Text style={styles.tableCell} wrap>Nights</Text>
@@ -243,7 +243,7 @@ export function ReportPDF({ reportType, data, startDate, endDate, filters, logoU
                 <Text style={styles.tableCell} wrap>Occupancy %</Text>
               </View>
               {data.map((item: any, index: number) => (
-                <View key={index} style={styles.tableRow} wrap={false}>
+                <View key={index} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 3 }]} wrap>{item.property || 'N/A'}</Text>
                   <Text style={styles.tableCell} wrap>{item.bookings || '0'}</Text>
                   <Text style={styles.tableCell} wrap>{item.nights || '0'}</Text>

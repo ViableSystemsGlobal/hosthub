@@ -328,8 +328,8 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
 
           {/* All Report Types for This Property */}
           {reportSections.map((section, idx) => (
-            <View key={section.key + idx} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section.title} ({section.rows.length} {section.rows.length === 1 ? 'item' : 'items'})</Text>
+            <View key={section.key + idx} style={styles.section} wrap={false}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
 
               {section.summary && (
                 <View style={styles.summary}>
@@ -346,15 +346,15 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
                 const columnWidths = calculateColumnWidths(section.headers, section.rows)
                 return (
                   <View key={`table-${section.key}`} style={styles.table}>
-                    <View style={styles.tableHeader} fixed>
+                    <View style={styles.tableHeader}>
                       {section.headers.map((h, i) => (
                         <View 
                           key={h + i} 
-                          style={[
-                            styles.tableHeaderCellWrapper,
-                            { width: columnWidths[i] },
-                            i === section.headers!.length - 1 ? { borderRight: 0 } : {}
-                          ]}
+                      style={[
+                        styles.tableHeaderCellWrapper,
+                        { width: columnWidths[i] },
+                        i === section.headers!.length - 1 ? { borderRight: 0 } : {}
+                      ]}
                         >
                           <Text style={styles.tableHeaderCell} wrap>
                             {h}
@@ -362,16 +362,16 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
                         </View>
                       ))}
                     </View>
-                    {section.rows.map((row, rIdx) => (
-                      <View key={rIdx} style={styles.tableRow} wrap={false}>
+                    {section.rows.slice(0, 200).map((row, rIdx) => (
+                      <View key={rIdx} style={styles.tableRow}>
                         {section.headers!.map((h, cIdx) => (
                           <View 
                             key={h + cIdx} 
-                            style={[
-                              styles.tableCellWrapper,
-                              { width: columnWidths[cIdx] },
-                              cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
-                            ]}
+                        style={[
+                          styles.tableCellWrapper,
+                          { width: columnWidths[cIdx] },
+                          cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
+                        ]}
                           >
                             <Text style={styles.tableCell} wrap>
                               {formatValue(row[h])}

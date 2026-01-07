@@ -19,6 +19,6 @@ cmds = [
 cmd = "cd .next/standalone && node server.js"
 
 [variables]
-PORT = "3000"
+PORT = "3300"
 HOSTNAME = "0.0.0.0"
 

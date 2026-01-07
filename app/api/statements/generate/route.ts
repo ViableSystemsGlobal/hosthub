@@ -205,9 +205,17 @@ export async function POST(request: NextRequest) {
     
     // Net calculation:
     // - For COMPANY bookings: Revenue - Commission - Company Expenses = what we owe owner
-    // - For OWNER bookings: Owner owes us commission (negative, so subtract)
+    // - For OWNER bookings: Owner received money directly, we take commission from what they received
+    //   So: ownerRevenue - ownerCommission = what owner keeps after we take our commission
+    //   But we're calculating what WE owe them, so: -ownerCommission (they owe us commission)
     // - Owner-paid expenses: we owe them back (reimbursement) = positive, so add
+    // 
+    // The key insight: When owner receives money directly, we take ALL commission from what they received.
+    // So if owner received $1000 and commission is $150, we take $150 from that $1000.
+    // Net to owner = (company revenue - company commission - company expenses) - (owner commission) + (owner-paid expenses)
     const netFromCompany = companyRevenue - companyCommission - companyPaidExpenses
+    // Owner commission is what we're owed from owner-received payments
+    // This is already calculated correctly: commission on full owner revenue
     const netToOwner = netFromCompany - ownerCommission + ownerPaidExpenses
 
     // Opening balance is always 0 for each period (fresh start)
