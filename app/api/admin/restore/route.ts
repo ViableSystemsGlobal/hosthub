@@ -8,10 +8,11 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; status?: number }
     return NextResponse.json(
-      { error: error.message || 'Unauthorized' },
-      { status: error.status || 401 }
+      { error: err.message || 'Unauthorized' },
+      { status: err.status || 401 }
     )
   }
 
@@ -34,48 +35,63 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Start transaction
+    // Start transaction with longer timeout for large restores
     await prisma.$transaction(async (tx) => {
       // Clear existing data if requested
       if (clearExisting) {
-        // Delete in reverse order of dependencies
+        // Delete in reverse order of dependencies (children first, then parents)
+        // Level 5 - Deepest children
         await tx.inventoryHistory.deleteMany({})
-        await tx.inventoryItem.deleteMany({})
         await tx.electricityAlert.deleteMany({})
-        await tx.electricityMeterReading.deleteMany({})
-        await tx.cleaningChecklist.deleteMany({})
-        await tx.report.deleteMany({})
-        await tx.recurringTask.deleteMany({})
-        await tx.workflowExecution.deleteMany({})
-        await tx.workflowRule.deleteMany({})
         await tx.message.deleteMany({})
-        await tx.conversation.deleteMany({})
-        await tx.aiInsightCache.deleteMany({})
-        await tx.notification.deleteMany({})
-        await tx.taskChecklist.deleteMany({})
-        await tx.taskAttachment.deleteMany({})
-        await tx.task.deleteMany({})
+        await tx.statementLine.deleteMany({})
         await tx.issueComment.deleteMany({})
         await tx.issueAttachment.deleteMany({})
-        await tx.issue.deleteMany({})
-        await tx.statementLine.deleteMany({})
+        await tx.taskAttachment.deleteMany({})
+        await tx.taskChecklist.deleteMany({})
+        await tx.workflowExecution.deleteMany({})
+        
+        // Level 4
+        await tx.inventoryItem.deleteMany({})
+        await tx.electricityMeterReading.deleteMany({})
+        await tx.conversation.deleteMany({})
         await tx.statement.deleteMany({})
+        await tx.issue.deleteMany({})
+        await tx.task.deleteMany({})
+        await tx.cleaningChecklist.deleteMany({})
+        await tx.workflowRule.deleteMany({})
+        
+        // Level 3
         await tx.expense.deleteMany({})
         await tx.booking.deleteMany({})
         await tx.document.deleteMany({})
         await tx.ownerTransaction.deleteMany({})
         await tx.payout.deleteMany({})
+        await tx.recurringTask.deleteMany({})
+        await tx.report.deleteMany({})
+        await tx.notification.deleteMany({})
+        await tx.aiInsightCache.deleteMany({})
         await tx.contact.deleteMany({})
+        
+        // Level 2
         await tx.property.deleteMany({})
         await tx.ownerWallet.deleteMany({})
+        await tx.emailTemplate.deleteMany({})
+        await tx.sMSTemplate.deleteMany({})
+        
+        // Level 1 - Parents
         await tx.user.deleteMany({ where: { role: { not: 'SUPER_ADMIN' } } })
         await tx.owner.deleteMany({})
       }
 
       const { data } = backup
 
-      // Restore in order of dependencies
-      // 1. Owners (with wallets and users)
+      // ========================================
+      // RESTORE IN ORDER OF DEPENDENCIES
+      // Parents first, then children
+      // ========================================
+
+      // Step 1: Owners (no dependencies)
       if (data.owners) {
         for (const owner of data.owners) {
           const { OwnerWallet, User, ...ownerData } = owner
@@ -84,7 +100,36 @@ export async function POST(request: NextRequest) {
             update: ownerData,
             create: ownerData,
           })
+        }
+      }
 
+      // Step 2: Users (depends on Owner via ownerId)
+      // First restore from users array (non-owner users like managers)
+      if (data.users) {
+        for (const user of data.users) {
+          const userData = { ...user }
+          // Check if ownerId exists
+          if (userData.ownerId) {
+            const ownerExists = await tx.owner.findUnique({
+              where: { id: userData.ownerId },
+              select: { id: true },
+            })
+            if (!ownerExists) {
+              userData.ownerId = null
+            }
+          }
+          await tx.user.upsert({
+            where: { id: userData.id },
+            update: userData,
+            create: userData,
+          })
+        }
+      }
+      // Then restore owner users and wallets
+      if (data.owners) {
+        for (const owner of data.owners) {
+          const { OwnerWallet, User } = owner
+          
           if (OwnerWallet) {
             await tx.ownerWallet.upsert({
               where: { id: OwnerWallet.id },
@@ -103,40 +148,212 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 2. Properties
+      // Step 3: Properties (depends on Owner, User)
       if (data.properties) {
         for (const property of data.properties) {
+          const propertyData = { ...property }
+          // Check if managerId exists
+          if (propertyData.managerId) {
+            const managerExists = await tx.user.findUnique({
+              where: { id: propertyData.managerId },
+              select: { id: true },
+            })
+            if (!managerExists) {
+              propertyData.managerId = null
+            }
+          }
           await tx.property.upsert({
-            where: { id: property.id },
-            update: property,
-            create: property,
+            where: { id: propertyData.id },
+            update: propertyData,
+            create: propertyData,
           })
         }
       }
 
-      // 3. Bookings
+      // Step 4: Contacts (depends on Owner)
+      if (data.contacts) {
+        for (const contact of data.contacts) {
+          await tx.contact.upsert({
+            where: { id: contact.id },
+            update: contact,
+            create: contact,
+          })
+        }
+      }
+
+      // Step 5: Bookings (depends on Property, Owner)
       if (data.bookings) {
         for (const booking of data.bookings) {
+          const bookingData = { ...booking }
+          // Check if checkedInById exists
+          if (bookingData.checkedInById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: bookingData.checkedInById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              bookingData.checkedInById = null
+            }
+          }
           await tx.booking.upsert({
-            where: { id: booking.id },
-            update: booking,
-            create: booking,
+            where: { id: bookingData.id },
+            update: bookingData,
+            create: bookingData,
           })
         }
       }
 
-      // 4. Expenses
+      // Step 6: CleaningChecklists (depends on Property, User) - MUST be before Tasks
+      if (data.cleaningChecklists) {
+        for (const checklist of data.cleaningChecklists) {
+          const checklistData = { ...checklist }
+          if (checklistData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: checklistData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              checklistData.createdById = null
+            }
+          }
+          await tx.cleaningChecklist.upsert({
+            where: { id: checklistData.id },
+            update: checklistData,
+            create: checklistData,
+          })
+        }
+      }
+
+      // Step 7: RecurringTasks (depends on Property, Owner, User)
+      if (data.recurringTasks) {
+        for (const recurringTask of data.recurringTasks) {
+          const rtData = { ...recurringTask }
+          if (rtData.assignedToUserId) {
+            const userExists = await tx.user.findUnique({
+              where: { id: rtData.assignedToUserId },
+              select: { id: true },
+            })
+            if (!userExists) {
+              rtData.assignedToUserId = null
+            }
+          }
+          if (rtData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: rtData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              rtData.createdById = null
+            }
+          }
+          await tx.recurringTask.upsert({
+            where: { id: rtData.id },
+            update: rtData,
+            create: rtData,
+          })
+        }
+      }
+
+      // Step 8: Tasks (depends on Property, Booking, RecurringTask)
+      if (data.tasks) {
+        for (const task of data.tasks) {
+          const { TaskAttachment, TaskChecklist, ...taskData } = task
+          // Check foreign keys
+          if (taskData.assignedToUserId) {
+            const userExists = await tx.user.findUnique({
+              where: { id: taskData.assignedToUserId },
+              select: { id: true },
+            })
+            if (!userExists) {
+              taskData.assignedToUserId = null
+            }
+          }
+          if (taskData.recurringTaskId) {
+            const rtExists = await tx.recurringTask.findUnique({
+              where: { id: taskData.recurringTaskId },
+              select: { id: true },
+            })
+            if (!rtExists) {
+              taskData.recurringTaskId = null
+            }
+          }
+          await tx.task.upsert({
+            where: { id: taskData.id },
+            update: taskData,
+            create: taskData,
+          })
+        }
+      }
+
+      // Step 9: TaskAttachments and TaskChecklists (depends on Task, CleaningChecklist)
+      if (data.tasks) {
+        for (const task of data.tasks) {
+          const { TaskAttachment, TaskChecklist } = task
+
+          if (TaskAttachment && TaskAttachment.length > 0) {
+            for (const attachment of TaskAttachment) {
+              const attachData = { ...attachment }
+              if (attachData.uploadedById) {
+                const userExists = await tx.user.findUnique({
+                  where: { id: attachData.uploadedById },
+                  select: { id: true },
+                })
+                if (!userExists) {
+                  attachData.uploadedById = null
+                }
+              }
+              await tx.taskAttachment.upsert({
+                where: { id: attachData.id },
+                update: attachData,
+                create: attachData,
+              })
+            }
+          }
+
+          if (TaskChecklist) {
+            // TaskChecklist is a single object, not an array
+            const checklist = TaskChecklist
+            // Check if the checklistId (CleaningChecklist) exists
+            if (checklist.checklistId) {
+              const clExists = await tx.cleaningChecklist.findUnique({
+                where: { id: checklist.checklistId },
+                select: { id: true },
+              })
+              if (clExists) {
+                await tx.taskChecklist.upsert({
+                  where: { id: checklist.id },
+                  update: checklist,
+                  create: checklist,
+                })
+              }
+              // Skip if cleaning checklist doesn't exist
+            }
+          }
+        }
+      }
+
+      // Step 10: Expenses (depends on Property, Owner, Task)
       if (data.expenses) {
         for (const expense of data.expenses) {
+          const expenseData = { ...expense }
+          if (expenseData.linkedTaskId) {
+            const taskExists = await tx.task.findUnique({
+              where: { id: expenseData.linkedTaskId },
+              select: { id: true },
+            })
+            if (!taskExists) {
+              expenseData.linkedTaskId = null
+            }
+          }
           await tx.expense.upsert({
-            where: { id: expense.id },
-            update: expense,
-            create: expense,
+            where: { id: expenseData.id },
+            update: expenseData,
+            create: expenseData,
           })
         }
       }
 
-      // 5. Statements
+      // Step 11: Statements (depends on Owner)
       if (data.statements) {
         for (const statement of data.statements) {
           const { StatementLine, ...statementData } = statement
@@ -158,10 +375,29 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 6. Issues
+      // Step 12: Issues (depends on Property, Contact)
       if (data.issues) {
         for (const issue of data.issues) {
           const { IssueAttachment, IssueComment, ...issueData } = issue
+          // Check foreign keys
+          if (issueData.assignedContactId) {
+            const contactExists = await tx.contact.findUnique({
+              where: { id: issueData.assignedContactId },
+              select: { id: true },
+            })
+            if (!contactExists) {
+              issueData.assignedContactId = null
+            }
+          }
+          if (issueData.assignedToUserId) {
+            const userExists = await tx.user.findUnique({
+              where: { id: issueData.assignedToUserId },
+              select: { id: true },
+            })
+            if (!userExists) {
+              issueData.assignedToUserId = null
+            }
+          }
           await tx.issue.upsert({
             where: { id: issueData.id },
             update: issueData,
@@ -180,71 +416,46 @@ export async function POST(request: NextRequest) {
 
           if (IssueComment && IssueComment.length > 0) {
             for (const comment of IssueComment) {
-              await tx.issueComment.upsert({
-                where: { id: comment.id },
-                update: comment,
-                create: comment,
+              // Check if user exists
+              const userExists = await tx.user.findUnique({
+                where: { id: comment.userId },
+                select: { id: true },
               })
+              if (userExists) {
+                await tx.issueComment.upsert({
+                  where: { id: comment.id },
+                  update: comment,
+                  create: comment,
+                })
+              }
+              // Skip comment if user doesn't exist (required field)
             }
           }
         }
       }
 
-      // 7. Tasks
-      if (data.tasks) {
-        for (const task of data.tasks) {
-          const { TaskAttachment, TaskChecklist, ...taskData } = task
-          await tx.task.upsert({
-            where: { id: taskData.id },
-            update: taskData,
-            create: taskData,
-          })
-
-          if (TaskAttachment && TaskAttachment.length > 0) {
-            for (const attachment of TaskAttachment) {
-              await tx.taskAttachment.upsert({
-                where: { id: attachment.id },
-                update: attachment,
-                create: attachment,
-              })
-            }
-          }
-
-          if (TaskChecklist && TaskChecklist.length > 0) {
-            for (const checklist of TaskChecklist) {
-              await tx.taskChecklist.upsert({
-                where: { id: checklist.id },
-                update: checklist,
-                create: checklist,
-              })
-            }
-          }
-        }
-      }
-
-      // 8. Documents
+      // Step 13: Documents (depends on Property, Owner, Booking, Expense, User)
       if (data.documents) {
         for (const document of data.documents) {
+          const docData = { ...document }
+          if (docData.uploadedById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: docData.uploadedById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              docData.uploadedById = null
+            }
+          }
           await tx.document.upsert({
-            where: { id: document.id },
-            update: document,
-            create: document,
+            where: { id: docData.id },
+            update: docData,
+            create: docData,
           })
         }
       }
 
-      // 9. Contacts
-      if (data.contacts) {
-        for (const contact of data.contacts) {
-          await tx.contact.upsert({
-            where: { id: contact.id },
-            update: contact,
-            create: contact,
-          })
-        }
-      }
-
-      // 10. Payouts
+      // Step 14: Payouts
       if (data.payouts) {
         for (const payout of data.payouts) {
           await tx.payout.upsert({
@@ -255,76 +466,100 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 11. Owner Transactions
+      // Step 15: Owner Transactions (depends on Owner, Statement)
       if (data.ownerTransactions) {
         for (const transaction of data.ownerTransactions) {
+          const txData = { ...transaction }
+          if (txData.referenceId) {
+            const statementExists = await tx.statement.findUnique({
+              where: { id: txData.referenceId },
+              select: { id: true },
+            })
+            if (!statementExists) {
+              txData.referenceId = null
+            }
+          }
           await tx.ownerTransaction.upsert({
-            where: { id: transaction.id },
-            update: transaction,
-            create: transaction,
+            where: { id: txData.id },
+            update: txData,
+            create: txData,
           })
         }
       }
 
-      // 12. Recurring Tasks
-      if (data.recurringTasks) {
-        for (const recurringTask of data.recurringTasks) {
-          await tx.recurringTask.upsert({
-            where: { id: recurringTask.id },
-            update: recurringTask,
-            create: recurringTask,
-          })
-        }
-      }
-
-      // 13. Reports
+      // Step 16: Reports
       if (data.reports) {
         for (const report of data.reports) {
+          const reportData = { ...report }
+          if (reportData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: reportData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              reportData.createdById = null
+            }
+          }
           await tx.report.upsert({
-            where: { id: report.id },
-            update: report,
-            create: report,
+            where: { id: reportData.id },
+            update: reportData,
+            create: reportData,
           })
         }
       }
 
-      // 14. Cleaning Checklists
-      if (data.cleaningChecklists) {
-        for (const checklist of data.cleaningChecklists) {
-          await tx.cleaningChecklist.upsert({
-            where: { id: checklist.id },
-            update: checklist,
-            create: checklist,
-          })
-        }
-      }
-
-      // 15. Electricity Meter Readings
+      // Step 17: Electricity Meter Readings (depends on Property, User)
       if (data.electricityMeterReadings) {
         for (const reading of data.electricityMeterReadings) {
+          const readingData = { ...reading }
+          if (readingData.enteredById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: readingData.enteredById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              readingData.enteredById = null
+            }
+          }
           await tx.electricityMeterReading.upsert({
-            where: { id: reading.id },
-            update: reading,
-            create: reading,
+            where: { id: readingData.id },
+            update: readingData,
+            create: readingData,
           })
         }
       }
 
-      // 16. Electricity Alerts
+      // Step 18: Electricity Alerts (depends on Property, ElectricityMeterReading)
       if (data.electricityAlerts) {
         for (const alert of data.electricityAlerts) {
-          await tx.electricityAlert.upsert({
-            where: { id: alert.id },
-            update: alert,
-            create: alert,
+          // Check if the reading exists
+          const readingExists = await tx.electricityMeterReading.findUnique({
+            where: { id: alert.readingId },
+            select: { id: true },
           })
+          if (readingExists) {
+            await tx.electricityAlert.upsert({
+              where: { id: alert.id },
+              update: alert,
+              create: alert,
+            })
+          }
         }
       }
 
-      // 17. Inventory Items
+      // Step 19: Inventory Items (depends on Property, User)
       if (data.inventoryItems) {
         for (const item of data.inventoryItems) {
           const { History, ...itemData } = item
+          if (itemData.lastCheckedById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: itemData.lastCheckedById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              itemData.lastCheckedById = null
+            }
+          }
           await tx.inventoryItem.upsert({
             where: { id: itemData.id },
             update: itemData,
@@ -333,39 +568,66 @@ export async function POST(request: NextRequest) {
 
           if (History && History.length > 0) {
             for (const history of History) {
+              const histData = { ...history }
+              if (histData.changedById) {
+                const userExists = await tx.user.findUnique({
+                  where: { id: histData.changedById },
+                  select: { id: true },
+                })
+                if (!userExists) {
+                  histData.changedById = null
+                }
+              }
               await tx.inventoryHistory.upsert({
-                where: { id: history.id },
-                update: history,
-                create: history,
+                where: { id: histData.id },
+                update: histData,
+                create: histData,
               })
             }
           }
         }
       }
 
-      // 18. Workflows
+      // Step 20: Workflows (depends on User)
       if (data.workflows) {
         for (const workflow of data.workflows) {
+          const wfData = { ...workflow }
+          if (wfData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: wfData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              wfData.createdById = null
+            }
+          }
           await tx.workflowRule.upsert({
-            where: { id: workflow.id },
-            update: workflow,
-            create: workflow,
+            where: { id: wfData.id },
+            update: wfData,
+            create: wfData,
           })
         }
       }
 
-      // 19. Workflow Executions
+      // Step 21: Workflow Executions (depends on WorkflowRule)
       if (data.workflowExecutions) {
         for (const execution of data.workflowExecutions) {
-          await tx.workflowExecution.upsert({
-            where: { id: execution.id },
-            update: execution,
-            create: execution,
+          // Check if workflow exists
+          const wfExists = await tx.workflowRule.findUnique({
+            where: { id: execution.workflowRuleId },
+            select: { id: true },
           })
+          if (wfExists) {
+            await tx.workflowExecution.upsert({
+              where: { id: execution.id },
+              update: execution,
+              create: execution,
+            })
+          }
         }
       }
 
-      // 20. Conversations
+      // Step 22: Conversations (depends on Owner)
       if (data.conversations) {
         for (const conversation of data.conversations) {
           const { Message, ...conversationData } = conversation
@@ -387,7 +649,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 21. Notifications
+      // Step 23: Notifications (depends on Owner)
       if (data.notifications) {
         for (const notification of data.notifications) {
           await tx.notification.upsert({
@@ -398,7 +660,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 22. AI Insight Cache
+      // Step 24: AI Insight Cache
       if (data.aiInsightCache) {
         for (const cache of data.aiInsightCache) {
           await tx.aiInsightCache.upsert({
@@ -409,29 +671,49 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 23. Email Templates
+      // Step 25: Email Templates (depends on User)
       if (data.emailTemplates) {
         for (const template of data.emailTemplates) {
+          const tplData = { ...template }
+          if (tplData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: tplData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              tplData.createdById = null
+            }
+          }
           await tx.emailTemplate.upsert({
-            where: { id: template.id },
-            update: template,
-            create: template,
+            where: { id: tplData.id },
+            update: tplData,
+            create: tplData,
           })
         }
       }
 
-      // 24. SMS Templates
+      // Step 26: SMS Templates (depends on User)
       if (data.smsTemplates) {
         for (const template of data.smsTemplates) {
+          const tplData = { ...template }
+          if (tplData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: tplData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              tplData.createdById = null
+            }
+          }
           await tx.sMSTemplate.upsert({
-            where: { id: template.id },
-            update: template,
-            create: template,
+            where: { id: tplData.id },
+            update: tplData,
+            create: tplData,
           })
         }
       }
 
-      // 25. Settings (non-sensitive)
+      // Step 27: Settings (no dependencies)
       if (data.settings) {
         for (const setting of data.settings) {
           await tx.setting.upsert({
@@ -441,16 +723,19 @@ export async function POST(request: NextRequest) {
           })
         }
       }
+    }, {
+      timeout: 120000, // 2 minute timeout for large restores
     })
 
     return NextResponse.json({
       success: true,
       message: 'Backup restored successfully',
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error('Restore error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to restore backup' },
+      { error: err.message || 'Failed to restore backup' },
       { status: 500 }
     )
   }

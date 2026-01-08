@@ -22,6 +22,12 @@ export async function GET(request: NextRequest) {
       createdAt: new Date().toISOString(),
       data: {
         // Core entities
+        // Users must be backed up separately to include non-owner users (e.g., managers)
+        users: await prisma.user.findMany({
+          where: {
+            role: { not: 'SUPER_ADMIN' }, // Exclude super admin from backup
+          },
+        }),
         owners: await prisma.owner.findMany({
           include: {
             OwnerWallet: true,
