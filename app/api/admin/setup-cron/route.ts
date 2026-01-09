@@ -44,23 +44,21 @@ export async function POST(request: NextRequest) {
     // Try to run the setup script
     try {
       if (existsSync(scriptPath)) {
-        // Set environment variables for the script
+        // Set only essential environment variables (avoid complex JSON vars that break shell)
         const env = {
-          ...process.env,
+          PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+          NODE_ENV: process.env.NODE_ENV || 'production',
           CRON_SECRET,
           NEXT_PUBLIC_APP_URL,
         }
-        
-        const envString = Object.entries(env)
-          .map(([key, value]) => `${key}="${value}"`)
-          .join(' ')
 
         // Try Node.js script first
         const output = execSync(
-          `${envString} node ${scriptPath}`,
+          `node ${scriptPath}`,
           { 
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe'],
+            env,
             timeout: 30000 // 30 second timeout
           }
         )
@@ -73,12 +71,20 @@ export async function POST(request: NextRequest) {
         })
       } else if (existsSync(shellScriptPath)) {
         // Try shell script as fallback
+        // Set only essential environment variables
+        const env = {
+          PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin',
+          NODE_ENV: process.env.NODE_ENV || 'production',
+          CRON_SECRET,
+          NEXT_PUBLIC_APP_URL,
+        }
+        
         const output = execSync(
           `bash ${shellScriptPath}`,
           { 
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe'],
-            env: { ...process.env, CRON_SECRET, NEXT_PUBLIC_APP_URL },
+            env,
             timeout: 30000
           }
         )
