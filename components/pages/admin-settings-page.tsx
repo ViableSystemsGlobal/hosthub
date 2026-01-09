@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/lib/toast'
-import { Save, Loader2, Send, Plus, Edit, Trash2, CheckSquare, X, RefreshCw, Download, Upload } from 'lucide-react'
+import { Save, Loader2, Send, Plus, Edit, Trash2, CheckSquare, X, RefreshCw, Download, Upload, Clock, CheckCircle2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -82,6 +82,7 @@ interface Settings {
   themeColor: string
   fxRateGHS: string
   fxRateUSD: string
+  fxRateFormat: 'ghsToUsd' | 'usdToGhs'
 
   // AI Provider Settings
   aiProvider: string
@@ -125,6 +126,7 @@ export function AdminSettingsPage() {
     themeColor: '#f97316',
     fxRateGHS: '0.08',
     fxRateUSD: '1.0',
+    fxRateFormat: 'ghsToUsd' as const,
     aiProvider: 'openai',
     openaiApiKey: '',
     anthropicApiKey: '',
@@ -203,6 +205,7 @@ export function AdminSettingsPage() {
       themeColor: data.THEME_COLOR || '#f97316',
       fxRateGHS: data.FX_RATE_GHS || '0.08',
       fxRateUSD: data.FX_RATE_USD || '1.0',
+      fxRateFormat: (data.FX_RATE_FORMAT as 'ghsToUsd' | 'usdToGhs') || 'ghsToUsd',
       aiProvider: data.AI_PROVIDER || 'openai',
       openaiApiKey: data.OPENAI_API_KEY || '',
       anthropicApiKey: data.ANTHROPIC_API_KEY || '',
@@ -1614,7 +1617,7 @@ export function AdminSettingsPage() {
                 <h3 className="text-lg font-semibold mb-4">Exchange Rates</h3>
                 <p className="text-sm text-gray-500 mb-4">
                   Set exchange rates for currency conversion. These rates will only apply to new bookings and expenses created after saving.
-                  Existing bookings will keep their original exchange rates.
+                  Existing bookings will keep their original exchange rates. Dashboard calculations use historical rates from each booking.
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1627,21 +1630,52 @@ export function AdminSettingsPage() {
                       value={settings.fxRateUSD}
                       onChange={(e) => updateSetting('fxRateUSD', e.target.value)}
                       placeholder="1.0"
+                      disabled
                     />
                     <p className="text-sm text-gray-500">1 USD = {settings.fxRateUSD || '1.0'} USD (always 1.0)</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="fxRateGHS">GHS Rate</Label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Label htmlFor="fxRateGHS">GHS Rate</Label>
+                      <select
+                        id="fxRateFormat"
+                        value={settings.fxRateFormat || 'ghsToUsd'}
+                        onChange={(e) => {
+                          const format = e.target.value
+                          const currentValue = parseFloat(settings.fxRateGHS || '0.08')
+                          let newValue = currentValue
+                          
+                          if (format === 'usdToGhs' && currentValue < 1) {
+                            // Convert from GHS→USD to USD→GHS
+                            newValue = 1 / currentValue
+                          } else if (format === 'ghsToUsd' && currentValue > 1) {
+                            // Convert from USD→GHS to GHS→USD
+                            newValue = 1 / currentValue
+                          }
+                          
+                          updateSetting('fxRateFormat', format)
+                          updateSetting('fxRateGHS', newValue.toFixed(4))
+                        }}
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value="ghsToUsd">1 GHS = X USD</option>
+                        <option value="usdToGhs">1 USD = X GHS</option>
+                      </select>
+                    </div>
                     <Input
                       id="fxRateGHS"
                       type="number"
                       step="0.0001"
                       value={settings.fxRateGHS}
                       onChange={(e) => updateSetting('fxRateGHS', e.target.value)}
-                      placeholder="0.08"
+                      placeholder={settings.fxRateFormat === 'usdToGhs' ? '11.5' : '0.08'}
                     />
-                    <p className="text-sm text-gray-500">1 GHS = {settings.fxRateGHS || '0.08'} USD</p>
+                    <p className="text-sm text-gray-500">
+                      {settings.fxRateFormat === 'usdToGhs' 
+                        ? `1 USD = ${settings.fxRateGHS || '11.5'} GHS`
+                        : `1 GHS = ${settings.fxRateGHS || '0.08'} USD`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1669,6 +1703,9 @@ function DiagnosticsTab() {
   const [showSendConfirmDialog, setShowSendConfirmDialog] = useState(false)
   const [sendReportType, setSendReportType] = useState<'owners' | 'company'>('owners')
   const [sendReportPeriod, setSendReportPeriod] = useState<'yesterday' | 'last-week' | 'last-month' | 'current-year'>('last-week')
+  const [settingUpCron, setSettingUpCron] = useState(false)
+  const [cronStatus, setCronStatus] = useState<any>(null)
+  const [cronSetupResult, setCronSetupResult] = useState<any>(null)
 
   const runDiagnostics = async () => {
     try {
@@ -1694,7 +1731,48 @@ function DiagnosticsTab() {
 
   useEffect(() => {
     runDiagnostics()
+    checkCronStatus()
   }, [])
+
+  const checkCronStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/setup-cron', {
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCronStatus(data)
+      }
+    } catch (error) {
+      // Silently fail - cron check is optional
+    }
+  }
+
+  const setupCronJobs = async () => {
+    try {
+      setSettingUpCron(true)
+      setCronSetupResult(null)
+      const res = await fetch('/api/admin/setup-cron', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCronSetupResult({ success: true, message: data.message, output: data.output })
+        toast.success('Cron Jobs Setup', 'Cron jobs have been set up successfully!')
+        await checkCronStatus()
+      } else {
+        setCronSetupResult({ success: false, message: data.message, instructions: data.instructions, error: data.error })
+        toast.error('Cron Setup', data.message || 'Failed to set up cron jobs. See instructions below.')
+      }
+    } catch (error: any) {
+      console.error('Cron setup error:', error)
+      setCronSetupResult({ success: false, error: error.message })
+      toast.error('Cron Setup Failed', error.message)
+    } finally {
+      setSettingUpCron(false)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -2084,6 +2162,138 @@ function DiagnosticsTab() {
               )}
             </div>
           )}
+
+          {/* Cron Jobs Setup */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Cron Jobs Setup
+              </CardTitle>
+              <CardDescription>
+                Automatically set up scheduled tasks (cron jobs) for AI reports, reminders, and recurring tasks
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Cron Status */}
+              {cronStatus && (
+                <div className={`p-3 rounded-lg border ${
+                  cronStatus.status === 'installed' 
+                    ? 'bg-green-50 border-green-200' 
+                    : cronStatus.status === 'not_installed'
+                    ? 'bg-yellow-50 border-yellow-200'
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {cronStatus.status === 'installed' ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        <span className="font-medium text-green-900">Cron jobs are installed</span>
+                      </>
+                    ) : cronStatus.status === 'not_installed' ? (
+                      <>
+                        <Clock className="w-5 h-5 text-yellow-600" />
+                        <span className="font-medium text-yellow-900">Cron jobs not detected</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-5 h-5 text-gray-600" />
+                        <span className="font-medium text-gray-900">Unable to check cron status</span>
+                      </>
+                    )}
+                  </div>
+                  {cronStatus.cronJobs && cronStatus.cronJobs.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-700">
+                      <p className="font-medium">Installed jobs:</p>
+                      <ul className="list-disc list-inside mt-1 space-y-1">
+                        {cronStatus.cronJobs.slice(0, 3).map((job: string, idx: number) => (
+                          <li key={idx} className="text-xs font-mono truncate">{job.substring(0, 80)}...</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Setup Button */}
+              <Button
+                onClick={setupCronJobs}
+                disabled={settingUpCron}
+                className="w-full bg-orange-600 hover:bg-orange-700"
+              >
+                {settingUpCron ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Set Up Cron Jobs
+                  </>
+                )}
+              </Button>
+
+              {/* Setup Result */}
+              {cronSetupResult && (
+                <div className={`p-4 rounded-lg border ${
+                  cronSetupResult.success 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-yellow-50 border-yellow-200'
+                }`}>
+                  <div className="font-medium mb-2">
+                    {cronSetupResult.success ? '✓ Setup Complete' : '⚠ Setup Instructions'}
+                  </div>
+                  <p className="text-sm mb-2">{cronSetupResult.message}</p>
+                  
+                  {cronSetupResult.instructions && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm font-medium">Manual Setup Required:</p>
+                      <div className="bg-white p-3 rounded border text-xs font-mono space-y-1">
+                        <p className="font-semibold">Option 1: SSH and run:</p>
+                        <p className="text-gray-700">npm run setup:cron</p>
+                        <p className="font-semibold mt-2">Option 2: Edit crontab manually:</p>
+                        <p className="text-gray-700">crontab -e</p>
+                        {cronSetupResult.instructions.cronJobs && (
+                          <div className="mt-2 space-y-1">
+                            <p className="font-semibold">Add these lines:</p>
+                            {cronSetupResult.instructions.cronJobs.map((job: any, idx: number) => (
+                              <div key={idx} className="text-gray-700">
+                                <span className="text-purple-600">{job.schedule}</span> {job.command}
+                                <span className="text-gray-500 ml-2"># {job.description}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2">
+                        See <code className="bg-gray-100 px-1 rounded">AUTO_CRON_SETUP.md</code> for detailed instructions
+                      </p>
+                    </div>
+                  )}
+
+                  {cronSetupResult.output && (
+                    <details className="mt-2">
+                      <summary className="text-sm cursor-pointer text-gray-700">View output</summary>
+                      <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-auto max-h-40">
+                        {cronSetupResult.output}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="font-semibold text-blue-900 mb-2 text-sm">About Cron Jobs</div>
+                <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                  <li>Cron jobs run scheduled tasks automatically (AI reports, reminders, etc.)</li>
+                  <li>They need to be set up on your server, not in the application</li>
+                  <li>If automatic setup fails, you can set them up manually via SSH</li>
+                  <li>Make sure <code className="bg-blue-100 px-1 rounded">CRON_SECRET</code> and <code className="bg-blue-100 px-1 rounded">NEXT_PUBLIC_APP_URL</code> are set in environment variables</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="font-semibold text-blue-900 mb-2">How It Works</div>

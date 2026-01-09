@@ -52,7 +52,16 @@ export function AIInsightCard({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Failed to generate insights' }))
-        throw new Error(errorData.error || `Failed to generate insights: ${res.statusText}`)
+        let errorMessage = errorData.error || `Failed to generate insights: ${res.statusText}`
+        
+        // Provide user-friendly error messages for common API key issues
+        if (errorMessage.includes('invalid x-api-key') || errorMessage.includes('authentication_error')) {
+          errorMessage = 'AI API key is invalid or expired. Please check your API key in Settings → AI Providers.'
+        } else if (errorMessage.includes('API key not configured')) {
+          errorMessage = 'AI API key is not configured. Please add your API key in Settings → AI Providers.'
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const data = await res.json()

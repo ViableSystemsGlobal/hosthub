@@ -123,7 +123,7 @@ interface Metrics {
   // New feature metrics
   lowStockItems?: number
   pendingCleaningTasks?: number
-  readyForGuestTasks?: number
+  occupancyRate?: number
   upcomingCheckIns?: Array<{
     id: string
     checkInDate: string
@@ -156,7 +156,7 @@ interface Metrics {
 export function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
-  const [timePeriod, setTimePeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month')
+  const [timePeriod, setTimePeriod] = useState<'week' | 'month' | 'quarter' | 'year' | 'lastMonth' | 'lastYear'>('month')
   const [insightsOpen, setInsightsOpen] = useState(false)
 
   useEffect(() => {
@@ -208,10 +208,14 @@ export function AdminDashboardPage() {
     switch (timePeriod) {
       case 'week':
         return 'This Week'
+      case 'lastMonth':
+        return 'Last Month'
       case 'quarter':
         return 'This Quarter'
       case 'year':
         return 'This Year'
+      case 'lastYear':
+        return 'Last Year'
       case 'month':
       default:
         return 'This Month'
@@ -270,15 +274,17 @@ export function AdminDashboardPage() {
               </div>
             </DrawerContent>
           </Drawer>
-          <Select value={timePeriod} onValueChange={(value: 'week' | 'month' | 'quarter' | 'year') => setTimePeriod(value)}>
+          <Select value={timePeriod} onValueChange={(value: 'week' | 'month' | 'quarter' | 'year' | 'lastMonth' | 'lastYear') => setTimePeriod(value)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="week">This Week</SelectItem>
               <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="lastMonth">Last Month</SelectItem>
               <SelectItem value="quarter">This Quarter</SelectItem>
               <SelectItem value="year">This Year</SelectItem>
+              <SelectItem value="lastYear">Last Year</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex gap-2">
@@ -482,24 +488,19 @@ export function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Ready for Guest */}
-        <Card className={metrics.readyForGuestTasks && metrics.readyForGuestTasks > 0 ? 'border-green-200 bg-green-50' : ''}>
+        {/* Occupancy Rate */}
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ready for Guest</CardTitle>
-            <CheckCircle2 className={`h-4 w-4 ${metrics.readyForGuestTasks && metrics.readyForGuestTasks > 0 ? 'text-green-600' : 'text-muted-foreground'}`} />
+            <CardTitle className="text-sm font-medium">Occupancy Rate</CardTitle>
+            <Percent className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.readyForGuestTasks || 0}</div>
+            <div className="text-2xl font-bold">
+              {metrics.occupancyRate !== undefined ? `${metrics.occupancyRate.toFixed(1)}%` : '0%'}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Properties cleaned & ready
+              {getPeriodLabel()} occupancy
             </p>
-            {metrics.readyForGuestTasks && metrics.readyForGuestTasks > 0 && (
-              <Link href="/admin/cleaning-tasks?status=COMPLETED">
-                <Button variant="link" size="sm" className="p-0 h-auto mt-2">
-                  View Ready <ArrowRight className="w-3 h-3 ml-1" />
-                </Button>
-              </Link>
-            )}
           </CardContent>
         </Card>
 

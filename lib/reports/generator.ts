@@ -4,8 +4,40 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { formatCurrency, Currency } from '@/lib/currency'
+import { formatCurrency, Currency, getFxRate } from '@/lib/currency'
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+
+/**
+ * Convert USD to GHS using historical rates from bookings
+ * Uses each booking's fxRateToBase to determine the historical rate
+ */
+async function convertUSDToGHSHistorical(
+  bookings: Array<{ currency: Currency; fxRateToBase: number; totalPayoutInBase: number }>
+): Promise<number> {
+  if (bookings.length === 0) return 0
+  
+  // Get current USD→GHS rate for USD bookings (limitation: we don't store historical USD→GHS rates)
+  const currentUsdToGhs = await getFxRate('USD', 'GHS')
+  
+  let totalGHS = 0
+  
+  for (const booking of bookings) {
+    const usdAmount = booking.totalPayoutInBase || 0
+    
+    if (booking.currency === 'GHS') {
+      // If booking was in GHS, fxRateToBase is GHS→USD rate
+      // To get USD→GHS, we invert it: 1 / fxRateToBase
+      const usdToGhsRate = booking.fxRateToBase > 0 ? 1 / booking.fxRateToBase : 0
+      totalGHS += usdAmount * usdToGhsRate
+    } else if (booking.currency === 'USD') {
+      // If booking was in USD, fxRateToBase should be 1.0
+      // We use current rate as fallback (limitation: no historical USD→GHS rate stored)
+      totalGHS += usdAmount * currentUsdToGhs
+    }
+  }
+  
+  return totalGHS
+}
 
 export interface ReportFilters {
   dateFrom?: string
@@ -91,8 +123,7 @@ export async function generateBookingsReport(
     'property',
     'owner',
     'nights',
-    'totalPayout',
-    'currency',
+    'revenue', // Show revenue in GHS (converted from USD using historical rates)
     'status',
     'source',
   ]
@@ -108,6 +139,7 @@ export async function generateBookingsReport(
       property: 'Property',
       owner: 'Owner',
       nights: 'Nights',
+      revenue: 'Revenue',
       totalPayout: 'Payout',
       currency: 'Currency',
       status: 'Status',
@@ -121,37 +153,51 @@ export async function generateBookingsReport(
     return fieldMap[field] || field
   })
 
-  // Build rows
-  const rows = bookings.map((booking) => {
-    return selectedFields.map((field) => {
-      switch (field) {
-        case 'checkInDate':
-          return booking.checkInDate ? format(new Date(booking.checkInDate), 'yyyy-MM-dd') : ''
-        case 'checkOutDate':
-          return booking.checkOutDate ? format(new Date(booking.checkOutDate), 'yyyy-MM-dd') : ''
-        case 'guestName':
-          return booking.guestName || ''
-        case 'property':
-          return booking.Property?.nickname || booking.Property?.name || ''
-        case 'owner':
-          return booking.Owner?.name || ''
-        case 'totalPayout':
-          return formatCurrency(booking.totalPayout, booking.currency as Currency)
-        case 'totalPayoutInBase':
-          return formatCurrency(booking.totalPayoutInBase, Currency.GHS)
-        case 'baseAmount':
-          return formatCurrency(booking.baseAmount, booking.currency as Currency)
-        case 'cleaningFee':
-          return formatCurrency(booking.cleaningFee, booking.currency as Currency)
-        case 'platformFees':
-          return formatCurrency(booking.platformFees, booking.currency as Currency)
-        case 'taxes':
-          return formatCurrency(booking.taxes, booking.currency as Currency)
-        default:
-          return (booking as any)[field]?.toString() || ''
-      }
+  // Build rows - need to fetch fxRateToBase for historical conversion
+  const rows = await Promise.all(
+    bookings.map(async (booking) => {
+      return await Promise.all(
+        selectedFields.map(async (field) => {
+          switch (field) {
+            case 'checkInDate':
+              return booking.checkInDate ? format(new Date(booking.checkInDate), 'yyyy-MM-dd') : ''
+            case 'checkOutDate':
+              return booking.checkOutDate ? format(new Date(booking.checkOutDate), 'yyyy-MM-dd') : ''
+            case 'guestName':
+              return booking.guestName || ''
+            case 'property':
+              return booking.Property?.nickname || booking.Property?.name || ''
+            case 'owner':
+              return booking.Owner?.name || ''
+            case 'revenue':
+              // Convert totalPayoutInBase from USD to GHS using historical rate from this booking
+              const revenueUsdToGhsRate = booking.currency === 'GHS' && booking.fxRateToBase > 0
+                ? 1 / booking.fxRateToBase
+                : await getFxRate('USD', 'GHS')
+              return formatCurrency(booking.totalPayoutInBase * revenueUsdToGhsRate, Currency.GHS)
+            case 'totalPayout':
+              return formatCurrency(booking.totalPayout, booking.currency as Currency)
+            case 'totalPayoutInBase':
+              // Convert from USD to GHS using historical rate from this booking
+              const usdToGhsRate = booking.currency === 'GHS' && booking.fxRateToBase > 0
+                ? 1 / booking.fxRateToBase
+                : await getFxRate('USD', 'GHS')
+              return formatCurrency(booking.totalPayoutInBase * usdToGhsRate, Currency.GHS)
+            case 'baseAmount':
+              return formatCurrency(booking.baseAmount, booking.currency as Currency)
+            case 'cleaningFee':
+              return formatCurrency(booking.cleaningFee, booking.currency as Currency)
+            case 'platformFees':
+              return formatCurrency(booking.platformFees, booking.currency as Currency)
+            case 'taxes':
+              return formatCurrency(booking.taxes, booking.currency as Currency)
+            default:
+              return (booking as any)[field]?.toString() || ''
+          }
+        })
+      )
     })
-  })
+  )
 
   // Calculate totals by currency
   const totalsByOriginalCurrency: Record<string, number> = {}
@@ -286,28 +332,73 @@ export async function generateRevenueReport(
     ? ['Property', 'Revenue', 'Bookings', 'Nights', 'Avg per Booking']
     : ['Owner', 'Revenue', 'Bookings', 'Nights', 'Avg per Booking']
 
-  const rows = Object.values(groupedData).map((group: any) => {
-    const avgRevenue = group.bookings > 0 ? group.revenue / group.bookings : 0
-    if (groupBy === 'none') {
+  // Convert grouped revenue from USD to GHS using historical rates
+  // We need to track which bookings are in each group
+  const bookingsByGroup: Record<string, typeof bookings> = {}
+  bookings.forEach((booking) => {
+    let key = ''
+    switch (groupBy) {
+      case 'month':
+        key = format(new Date(booking.checkInDate), 'yyyy-MM')
+        break
+      case 'property':
+        key = booking.Property?.nickname || booking.Property?.name || booking.propertyId
+        break
+      case 'owner':
+        key = booking.Owner?.name || booking.ownerId
+        break
+      default:
+        key = 'all'
+    }
+    if (!bookingsByGroup[key]) {
+      bookingsByGroup[key] = []
+    }
+    bookingsByGroup[key].push(booking)
+  })
+
+  const rows = await Promise.all(
+    Object.values(groupedData).map(async (group: any) => {
+      // Convert revenue from USD to GHS using historical rates for this group
+      const groupBookings = bookingsByGroup[group.key] || []
+      const revenueInGHS = await convertUSDToGHSHistorical(
+        groupBookings.map(b => ({
+          currency: b.currency,
+          fxRateToBase: b.fxRateToBase || 1.0,
+          totalPayoutInBase: b.totalPayoutInBase || 0,
+        }))
+      )
+      const avgRevenue = group.bookings > 0 ? revenueInGHS / group.bookings : 0
+      
+      if (groupBy === 'none') {
+        return [
+          formatCurrency(revenueInGHS, Currency.GHS),
+          group.bookings.toString(),
+          group.nights.toString(),
+          formatCurrency(avgRevenue, Currency.GHS),
+        ]
+      }
       return [
-        formatCurrency(group.revenue, Currency.GHS),
+        group.key,
+        formatCurrency(revenueInGHS, Currency.GHS),
         group.bookings.toString(),
         group.nights.toString(),
         formatCurrency(avgRevenue, Currency.GHS),
       ]
-    }
-    return [
-      group.key,
-      formatCurrency(group.revenue, Currency.GHS),
-      group.bookings.toString(),
-      group.nights.toString(),
-      formatCurrency(avgRevenue, Currency.GHS),
-    ]
-  })
+    })
+  )
 
-  const totalRevenue = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.revenue, 0)
+  const totalRevenueUSD = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.revenue, 0)
   const totalBookings = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.bookings, 0)
   const totalNights = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.nights, 0)
+
+  // Convert total revenue from USD to GHS using historical rates
+  const totalRevenueInGHS = await convertUSDToGHSHistorical(
+    bookings.map(b => ({
+      currency: b.currency,
+      fxRateToBase: b.fxRateToBase || 1.0,
+      totalPayoutInBase: b.totalPayoutInBase || 0,
+    }))
+  )
 
   // Format currency totals for display
   const currencyTotals = Object.entries(totalsByOriginalCurrency)
@@ -318,9 +409,10 @@ export async function generateRevenueReport(
     'Total Bookings': totalBookings,
     'Total Nights': totalNights,
     'Total Revenue': currencyTotals || formatCurrency(0, Currency.GHS),
-    'Total Revenue (USD)': formatCurrency(totalRevenue, Currency.USD),
+    'Total Revenue (GHS)': formatCurrency(totalRevenueInGHS, Currency.GHS),
+    'Total Revenue (USD)': formatCurrency(totalRevenueUSD, Currency.USD),
     'Average Revenue (USD)': totalBookings > 0 
-      ? formatCurrency(totalRevenue / totalBookings, Currency.USD) 
+      ? formatCurrency(totalRevenueUSD / totalBookings, Currency.USD) 
       : formatCurrency(0, Currency.USD),
     'Note': 'Revenue Report shows COMPLETED bookings only',
   }

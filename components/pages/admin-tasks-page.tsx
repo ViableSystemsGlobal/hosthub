@@ -27,6 +27,7 @@ import { toast } from '@/lib/toast'
 import { TaskType, TaskStatus } from '@prisma/client'
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { Pagination } from '@/components/ui/pagination'
 
 interface Task {
   id: string
@@ -46,6 +47,8 @@ export function AdminTasksPage() {
   const [loading, setLoading] = useState(true)
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
   const [filters, setFilters] = useState({
     status: '',
     type: '',
@@ -85,14 +88,25 @@ export function AdminTasksPage() {
 
   const applyFilters = () => {
     setLoading(true)
+    setCurrentPage(1) // Reset to first page when filters change
     fetchTasks()
   }
 
   const handleSelectAll = () => {
-    if (selectedTasks.size === tasks.length) {
-      setSelectedTasks(new Set())
+    const currentPageTasks = tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const currentPageIds = new Set(currentPageTasks.map(t => t.id))
+    const allCurrentPageSelected = currentPageIds.size > 0 && Array.from(currentPageIds).every(id => selectedTasks.has(id))
+    
+    if (allCurrentPageSelected) {
+      // Deselect all on current page
+      const newSelected = new Set(selectedTasks)
+      currentPageIds.forEach(id => newSelected.delete(id))
+      setSelectedTasks(newSelected)
     } else {
-      setSelectedTasks(new Set(tasks.map(t => t.id)))
+      // Select all on current page
+      const newSelected = new Set(selectedTasks)
+      currentPageIds.forEach(id => newSelected.add(id))
+      setSelectedTasks(newSelected)
     }
   }
 
@@ -412,11 +426,16 @@ export function AdminTasksPage() {
                       onClick={handleSelectAll}
                       className="flex items-center justify-center"
                     >
-                      {selectedTasks.size === tasks.length && tasks.length > 0 ? (
-                        <CheckSquare className="w-4 h-4" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
+                      {(() => {
+                        const currentPageTasks = tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        const currentPageIds = new Set(currentPageTasks.map(t => t.id))
+                        const allSelected = currentPageIds.size > 0 && Array.from(currentPageIds).every(id => selectedTasks.has(id))
+                        return allSelected ? (
+                          <CheckSquare className="w-4 h-4" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )
+                      })()}
                     </button>
                   </TableHead>
                   <TableHead>Property</TableHead>
@@ -428,7 +447,7 @@ export function AdminTasksPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => (
+                {tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((task) => (
                 <TableRow key={task.id}>
                   <TableCell>
                     <button
@@ -470,6 +489,15 @@ export function AdminTasksPage() {
               ))}
             </TableBody>
           </Table>
+          {tasks.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(tasks.length / pageSize)}
+              onPageChange={setCurrentPage}
+              pageSize={pageSize}
+              totalItems={tasks.length}
+            />
+          )}
         </CardContent>
       </Card>
       )}

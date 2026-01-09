@@ -402,7 +402,8 @@ export async function sendBookingNotification(
     return // Don't send notification if disabled for this event
   }
 
-  const channels: NotificationChannel[] = [NotificationChannel.EMAIL]
+  // Send both email and SMS for booking notifications
+  const channels: NotificationChannel[] = [NotificationChannel.EMAIL, NotificationChannel.SMS]
   
   let notificationType: NotificationType
   switch (event) {

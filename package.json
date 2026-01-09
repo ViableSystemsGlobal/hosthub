@@ -14,7 +14,9 @@
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "setup:cron": "node scripts/setup-cron.js",
+    "postinstall": "chmod +x scripts/setup-cron.sh 2>/dev/null || true"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

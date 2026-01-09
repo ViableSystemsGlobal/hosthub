@@ -1,8 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth-helpers'
-import { convertCurrency } from '@/lib/currency'
+import { convertCurrency, getFxRate } from '@/lib/currency'
+import { Currency } from '@prisma/client'
 import { startOfMonth, endOfMonth, subMonths, eachDayOfInterval, format, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subWeeks, subQuarters, subYears } from 'date-fns'
+
+/**
+ * Batch convert currencies to GHS - much faster than individual conversions
+ * Fetches FX rates once and converts all items
+ */
+async function batchConvertToGHS(
+  items: Array<{ amount: number; currency: Currency }>
+): Promise<number> {
+  if (items.length === 0) return 0
+  
+  // Get FX rates once (from database cache)
+  const usdToGhs = await getFxRate('USD', 'GHS')
+  
+  let total = 0
+  for (const item of items) {
+    if (item.currency === 'GHS') {
+      total += item.amount
+    } else if (item.currency === 'USD') {
+      // Convert USD to GHS
+      total += item.amount * usdToGhs
+    }
+  }
+  return total
+}
+
+/**
+ * Convert USD to GHS using historical rates from bookings
+ * Uses each booking's fxRateToBase to determine the historical rate
+ * 
+ * Note: fxRateToBase is the rate from booking currency to USD (base currency)
+ * - For GHS bookings: fxRateToBase = GHS→USD rate, so USD→GHS = 1/fxRateToBase
+ * - For USD bookings: fxRateToBase = 1.0, so we use current rate (limitation)
+ */
+async function convertUSDToGHSHistorical(
+  bookings: Array<{ currency: Currency; fxRateToBase: number; totalPayoutInBase: number }>
+): Promise<number> {
+  if (bookings.length === 0) return 0
+  
+  // Get current USD→GHS rate for USD bookings (limitation: we don't store historical USD→GHS rates)
+  const currentUsdToGhs = await getFxRate('USD', 'GHS')
+  
+  let totalGHS = 0
+  
+  for (const booking of bookings) {
+    const usdAmount = booking.totalPayoutInBase || 0
+    
+    if (booking.currency === 'GHS') {
+      // If booking was in GHS, fxRateToBase is GHS→USD rate
+      // To get USD→GHS, we invert it: 1 / fxRateToBase
+      const usdToGhsRate = booking.fxRateToBase > 0 ? 1 / booking.fxRateToBase : 0
+      totalGHS += usdAmount * usdToGhsRate
+    } else if (booking.currency === 'USD') {
+      // If booking was in USD, fxRateToBase should be 1.0
+      // We use current rate as fallback (limitation: no historical USD→GHS rate stored)
+      totalGHS += usdAmount * currentUsdToGhs
+    }
+  }
+  
+  return totalGHS
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +88,7 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
     const searchParams = request.nextUrl.searchParams
-    const period = searchParams.get('period') || 'month' // week, month, quarter, year
+    const period = searchParams.get('period') || 'month' // week, month, quarter, year, lastMonth, lastYear
 
     // Calculate date range based on period
     let periodStart: Date
@@ -42,6 +103,12 @@ export async function GET(request: NextRequest) {
         previousPeriodStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
         previousPeriodEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
         break
+      case 'lastMonth':
+        periodStart = startOfMonth(subMonths(now, 1))
+        periodEnd = endOfMonth(subMonths(now, 1))
+        previousPeriodStart = startOfMonth(subMonths(now, 2))
+        previousPeriodEnd = endOfMonth(subMonths(now, 2))
+        break
       case 'quarter':
         periodStart = startOfQuarter(now)
         periodEnd = endOfQuarter(now)
@@ -54,6 +121,12 @@ export async function GET(request: NextRequest) {
         previousPeriodStart = startOfYear(subYears(now, 1))
         previousPeriodEnd = endOfYear(subYears(now, 1))
         break
+      case 'lastYear':
+        periodStart = startOfYear(subYears(now, 1))
+        periodEnd = endOfYear(subYears(now, 1))
+        previousPeriodStart = startOfYear(subYears(now, 2))
+        previousPeriodEnd = endOfYear(subYears(now, 2))
+        break
       case 'month':
       default:
         periodStart = startOfMonth(now)
@@ -63,235 +136,202 @@ export async function GET(request: NextRequest) {
         break
     }
 
-    // Active properties
-    const activeProperties = await prisma.property.count({
-      where: { status: 'active' },
-    })
-
-    // Period Revenue (all bookings in current period)
-    const periodBookings = await prisma.booking.findMany({
-      where: {
-        checkInDate: {
-          gte: periodStart,
-          lte: periodEnd,
+    // Fetch all data in parallel where possible
+    const [
+      activeProperties,
+      periodBookings,
+      periodExpenses,
+      prevPeriodBookings,
+      prevPeriodExpenses,
+      wallets,
+    ] = await Promise.all([
+      prisma.property.count({ where: { status: 'active' } }),
+      prisma.booking.findMany({
+        where: {
+          checkInDate: { gte: periodStart, lte: periodEnd },
+          status: 'COMPLETED', // Match report: only completed bookings
         },
-      },
-    })
-
-    // Period Revenue = gross revenue (baseAmount + cleaningFee) in GHS (display currency)
-    let periodRevenue = 0
-    for (const booking of periodBookings) {
-      const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-      const grossInGHS = await convertCurrency(
-        grossBookingAmount,
-        booking.currency,
-        'GHS'
-      )
-      periodRevenue += grossInGHS
-    }
-
-    // Period Expenses (convert to GHS for display)
-    const periodExpenses = await prisma.expense.findMany({
-      where: {
-        date: {
-          gte: periodStart,
-          lte: periodEnd,
+      }),
+      prisma.expense.findMany({
+        where: {
+          date: { gte: periodStart, lte: periodEnd },
         },
-      },
-    })
+      }),
+      prisma.booking.findMany({
+        where: {
+          checkInDate: { gte: previousPeriodStart, lte: previousPeriodEnd },
+          status: 'COMPLETED', // Match report: only completed bookings
+        },
+      }),
+      prisma.expense.findMany({
+        where: {
+          date: { gte: previousPeriodStart, lte: previousPeriodEnd },
+        },
+      }),
+      prisma.ownerWallet.findMany(),
+    ])
 
-    let periodExpensesTotal = 0
-    for (const expense of periodExpenses) {
-      const amountInGHS = await convertCurrency(
-        expense.amount,
-        expense.currency,
-        'GHS'
-      )
-      periodExpensesTotal += amountInGHS
-    }
+    // Fetch properties for commission calculation
+    const propertyIds = [...new Set([...periodBookings, ...prevPeriodBookings].map(b => b.propertyId))]
+    const allPropertiesWithDefaults = propertyIds.length > 0
+      ? await prisma.property.findMany({
+          where: { id: { in: propertyIds } },
+          select: { id: true, defaultCommissionRate: true },
+        })
+      : []
 
-    // Period Commission (calculated on gross revenue: baseAmount + cleaningFee) in GHS
-    let periodCommission = 0
-    for (const booking of periodBookings) {
-      const property = await prisma.property.findUnique({
-        where: { id: booking.propertyId },
-      })
-      if (property) {
-        const commissionRate = property.defaultCommissionRate || 0.15
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-        const grossInGHS = await convertCurrency(
-          grossBookingAmount,
-          booking.currency,
-          'GHS'
-        )
-        periodCommission += grossInGHS * commissionRate
-      }
-    }
+    // Create property lookup map
+    const propertyMap = new Map(allPropertiesWithDefaults.map(p => [p.id, p]))
 
-    // Total owner balances
-    const wallets = await prisma.ownerWallet.findMany()
-    const totalBalances = wallets.reduce(
-      (sum, wallet) => sum + wallet.currentBalance,
-      0
+    // Use totalPayoutInBase (net revenue) to match report calculation
+    // Convert from USD to GHS using historical rates from each booking
+    // This ensures accuracy - each booking uses the rate that was active when it was created
+    const periodRevenue = await convertUSDToGHSHistorical(
+      periodBookings.map(b => ({
+        currency: b.currency,
+        fxRateToBase: b.fxRateToBase || 1.0,
+        totalPayoutInBase: b.totalPayoutInBase || 0,
+      }))
     )
 
-    // Total commissions receivable (commissions payable by owners)
+    const periodExpensesTotal = await batchConvertToGHS(
+      periodExpenses.map(e => ({ amount: e.amount, currency: e.currency }))
+    )
+
+    // Calculate commission on gross revenue (baseAmount + cleaningFee) for commission calculation
+    // Commission is calculated on gross, not net
+    const commissionItems = periodBookings.map(b => {
+      const property = propertyMap.get(b.propertyId)
+      const rate = property?.defaultCommissionRate || 0.15
+      return {
+        amount: (b.baseAmount + b.cleaningFee) * rate,
+        currency: b.currency,
+      }
+    })
+    const periodCommission = await batchConvertToGHS(commissionItems)
+
+    // Previous period calculations - use totalPayoutInBase (net revenue)
+    // Convert from USD to GHS using historical rates from each booking
+    const prevPeriodRevenue = await convertUSDToGHSHistorical(
+      prevPeriodBookings.map(b => ({
+        currency: b.currency,
+        fxRateToBase: b.fxRateToBase || 1.0,
+        totalPayoutInBase: b.totalPayoutInBase || 0,
+      }))
+    )
+
+    const prevPeriodExpensesTotal = await batchConvertToGHS(
+      prevPeriodExpenses.map(e => ({ amount: e.amount, currency: e.currency }))
+    )
+
+    // Previous period commission - calculated on gross revenue
+    const prevCommissionItems = prevPeriodBookings.map(b => {
+      const property = propertyMap.get(b.propertyId)
+      const rate = property?.defaultCommissionRate || 0.15
+      return {
+        amount: (b.baseAmount + b.cleaningFee) * rate,
+        currency: b.currency,
+      }
+    })
+    const prevPeriodCommission = await batchConvertToGHS(prevCommissionItems)
+
+    // Total owner balances
+    const totalBalances = wallets.reduce((sum, wallet) => sum + wallet.currentBalance, 0)
     const totalCommissionsReceivable = wallets.reduce(
       (sum, wallet) => sum + (wallet.commissionsPayable || 0),
       0
     )
 
-    // Previous period for comparison
-    const prevPeriodBookings = await prisma.booking.findMany({
-      where: {
-        checkInDate: {
-          gte: previousPeriodStart,
-          lte: previousPeriodEnd,
-        },
-      },
-    })
-
-    let prevPeriodRevenue = 0
-    for (const booking of prevPeriodBookings) {
-      const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-      const grossInGHS = await convertCurrency(
-        grossBookingAmount,
-        booking.currency,
-        'GHS'
-      )
-      prevPeriodRevenue += grossInGHS
-    }
-
-    // Previous period expenses
-    const prevPeriodExpenses = await prisma.expense.findMany({
-      where: {
-        date: {
-          gte: previousPeriodStart,
-          lte: previousPeriodEnd,
-        },
-      },
-    })
-
-    let prevPeriodExpensesTotal = 0
-    for (const expense of prevPeriodExpenses) {
-      const amountInGHS = await convertCurrency(
-        expense.amount,
-        expense.currency,
-        'GHS'
-      )
-      prevPeriodExpensesTotal += amountInGHS
-    }
-
-    // Previous period commission
-    let prevPeriodCommission = 0
-    for (const booking of prevPeriodBookings) {
-      const property = await prisma.property.findUnique({
-        where: { id: booking.propertyId },
-      })
-      if (property) {
-        const commissionRate = property.defaultCommissionRate || 0.15
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-        const grossInGHS = await convertCurrency(
-          grossBookingAmount,
-          booking.currency,
-          'GHS'
-        )
-        prevPeriodCommission += grossInGHS * commissionRate
-      }
-    }
-
-    // Generate daily revenue data for last 30 days (regardless of period)
+    // Generate daily revenue data for last 30 days (optimized - single query)
     const last30DaysStart = new Date(now)
     last30DaysStart.setDate(last30DaysStart.getDate() - 30)
+    last30DaysStart.setHours(0, 0, 0, 0)
+    
+    const last30DaysBookings = await prisma.booking.findMany({
+      where: {
+        checkInDate: {
+          gte: last30DaysStart,
+          lte: now,
+        },
+        status: 'COMPLETED', // Match report: only completed bookings
+      },
+      select: {
+        checkInDate: true,
+        currency: true,
+        fxRateToBase: true,
+        totalPayoutInBase: true,
+      },
+    })
+
+    // Group by day using historical rates
+    const dailyRevenueMap = new Map<string, Array<{ currency: Currency; fxRateToBase: number; totalPayoutInBase: number }>>()
+    for (const booking of last30DaysBookings) {
+      const dayKey = format(booking.checkInDate, 'yyyy-MM-dd')
+      if (!dailyRevenueMap.has(dayKey)) {
+        dailyRevenueMap.set(dayKey, [])
+      }
+      dailyRevenueMap.get(dayKey)!.push({
+        currency: booking.currency,
+        fxRateToBase: booking.fxRateToBase || 1.0,
+        totalPayoutInBase: booking.totalPayoutInBase || 0,
+      })
+    }
+
     const last30Days = eachDayOfInterval({
       start: last30DaysStart,
       end: now,
     })
 
+    // Convert daily revenue from USD to GHS using historical rates
     const dailyRevenueData = await Promise.all(
       last30Days.map(async (day) => {
-        const dayStart = new Date(day)
-        dayStart.setHours(0, 0, 0, 0)
-        const dayEnd = new Date(day)
-        dayEnd.setHours(23, 59, 59, 999)
-        
-        const dayBookings = await prisma.booking.findMany({
-          where: {
-            checkInDate: {
-              gte: dayStart,
-              lte: dayEnd,
-            },
-          },
-        })
-
-        let dayRevenue = 0
-        for (const booking of dayBookings) {
-          const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-          const grossInGHS = await convertCurrency(
-            grossBookingAmount,
-            booking.currency,
-            'GHS'
-          )
-          dayRevenue += grossInGHS
-        }
-
-        return dayRevenue
+        const dayKey = format(day, 'yyyy-MM-dd')
+        const dayBookings = dailyRevenueMap.get(dayKey) || []
+        return await convertUSDToGHSHistorical(dayBookings)
       })
     )
 
-    // Generate period-based revenue/expense chart data
+    // Generate period-based revenue/expense chart data (optimized)
     const periodDays = eachDayOfInterval({
       start: periodStart,
       end: periodEnd,
     })
 
+    // Group bookings and expenses by day
+    // Use historical rates for bookings
+    const periodBookingsByDay = new Map<string, Array<{ currency: Currency; fxRateToBase: number; totalPayoutInBase: number }>>()
+    const periodExpensesByDay = new Map<string, Array<{ amount: number; currency: Currency }>>()
+
+    for (const booking of periodBookings) {
+      const dayKey = format(booking.checkInDate, 'yyyy-MM-dd')
+      if (!periodBookingsByDay.has(dayKey)) {
+        periodBookingsByDay.set(dayKey, [])
+      }
+      periodBookingsByDay.get(dayKey)!.push({
+        currency: booking.currency,
+        fxRateToBase: booking.fxRateToBase || 1.0,
+        totalPayoutInBase: booking.totalPayoutInBase || 0,
+      })
+    }
+
+    for (const expense of periodExpenses) {
+      const dayKey = format(expense.date, 'yyyy-MM-dd')
+      if (!periodExpensesByDay.has(dayKey)) {
+        periodExpensesByDay.set(dayKey, [])
+      }
+      periodExpensesByDay.get(dayKey)!.push({
+        amount: expense.amount,
+        currency: expense.currency,
+      })
+    }
+
     const revenueExpenseChartData = await Promise.all(
       periodDays.map(async (day) => {
-        const dayStart = new Date(day)
-        dayStart.setHours(0, 0, 0, 0)
-        const dayEnd = new Date(day)
-        dayEnd.setHours(23, 59, 59, 999)
-
-        // Revenue for this day
-        const dayBookings = await prisma.booking.findMany({
-          where: {
-            checkInDate: {
-              gte: dayStart,
-              lte: dayEnd,
-            },
-          },
-        })
-
-        let dayRevenue = 0
-        for (const booking of dayBookings) {
-          const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-          const grossInGHS = await convertCurrency(
-            grossBookingAmount,
-            booking.currency,
-            'GHS'
-          )
-          dayRevenue += grossInGHS
-        }
-
-        // Expenses for this day
-        const dayExpenses = await prisma.expense.findMany({
-          where: {
-            date: {
-              gte: dayStart,
-              lte: dayEnd,
-            },
-          },
-        })
-
-        let dayExpensesTotal = 0
-        for (const expense of dayExpenses) {
-          const amountInGHS = await convertCurrency(
-            expense.amount,
-            expense.currency,
-            'GHS'
-          )
-          dayExpensesTotal += amountInGHS
-        }
+        const dayKey = format(day, 'yyyy-MM-dd')
+        const dayBookings = periodBookingsByDay.get(dayKey) || []
+        const dayRevenue = await convertUSDToGHSHistorical(dayBookings) // Use historical rates
+        const dayExpenses = periodExpensesByDay.get(dayKey) || []
+        const dayExpensesTotal = await batchConvertToGHS(dayExpenses)
 
         return {
           label: format(day, period === 'week' ? 'EEE' : period === 'month' ? 'MMM dd' : period === 'quarter' ? 'MMM dd' : 'MMM'),
@@ -325,25 +365,26 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    // Expense breakdown by category
-    const expenseByCategory: Record<string, number> = {}
+    // Expense breakdown by category (batch convert)
+    const expenseByCategory: Record<string, Array<{ amount: number; currency: Currency }>> = {}
     for (const expense of periodExpenses) {
       const category = expense.category || 'OTHER'
-      const amountInGHS = await convertCurrency(
-        expense.amount,
-        expense.currency,
-        'GHS'
-      )
       if (!expenseByCategory[category]) {
-        expenseByCategory[category] = 0
+        expenseByCategory[category] = []
       }
-      expenseByCategory[category] += amountInGHS
+      expenseByCategory[category].push({
+        amount: expense.amount,
+        currency: expense.currency,
+      })
     }
 
-    const expenseBreakdown = Object.entries(expenseByCategory).map(([category, amount]) => ({
-      label: category,
-      value: amount,
-    }))
+    const expenseBreakdown = await Promise.all(
+      Object.entries(expenseByCategory).map(async ([category, items]) => ({
+        label: category,
+        value: await batchConvertToGHS(items),
+      }))
+    )
+
 
     // Recent bookings - use capitalized relation names as per Prisma schema
     const recentBookings = await prisma.booking.findMany({
@@ -407,59 +448,49 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch all property bookings in parallel
+    const allPropertyBookings = await Promise.all(
+      allProperties.map(property =>
+        Promise.all([
+          prisma.booking.findMany({
+            where: {
+              propertyId: property.id,
+              checkInDate: { gte: periodStart, lte: periodEnd },
+              status: 'COMPLETED', // Match report: only completed bookings
+            },
+          }),
+          prisma.booking.findMany({
+            where: {
+              propertyId: property.id,
+              checkInDate: { gte: previousPeriodStart, lte: previousPeriodEnd },
+              status: 'COMPLETED', // Match report: only completed bookings
+            },
+          }),
+        ]).then(([current, previous]) => ({ property, current, previous }))
+      )
+    )
+
     const propertiesWithRevenue = await Promise.all(
-      allProperties.map(async (property) => {
-        const propertyBookings = await prisma.booking.findMany({
-          where: {
-            propertyId: property.id,
-            checkInDate: {
-              gte: periodStart,
-              lte: periodEnd,
-            },
-            status: 'COMPLETED',
-          },
-        })
+      allPropertyBookings.map(async ({ property, current, previous }) => {
+        // Use totalPayoutInBase (net revenue in USD), convert to GHS using historical rates
+        const revenue = await convertUSDToGHSHistorical(
+          current.map(b => ({
+            currency: b.currency,
+            fxRateToBase: b.fxRateToBase || 1.0,
+            totalPayoutInBase: b.totalPayoutInBase || 0,
+          }))
+        )
+        const prevRevenue = await convertUSDToGHSHistorical(
+          previous.map(b => ({
+            currency: b.currency,
+            fxRateToBase: b.fxRateToBase || 1.0,
+            totalPayoutInBase: b.totalPayoutInBase || 0,
+          }))
+        )
 
-        // Calculate revenue and occupancy
-        let revenue = 0
-        let totalNights = 0
-        for (const booking of propertyBookings) {
-          const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-          const grossInGHS = await convertCurrency(
-            grossBookingAmount,
-            booking.currency,
-            'GHS'
-          )
-          revenue += isNaN(grossInGHS) ? 0 : grossInGHS
-          totalNights += booking.nights || 0
-        }
-
-        // Calculate occupancy based on period length
-        const daysInPeriod = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24))
+        const totalNights = current.reduce((sum, b) => sum + (b.nights || 0), 0)
+        const daysInPeriod = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
         const occupancy = daysInPeriod > 0 ? (totalNights / daysInPeriod) * 100 : 0
-
-        // Previous period revenue for comparison
-        const prevPropertyBookings = await prisma.booking.findMany({
-          where: {
-            propertyId: property.id,
-            checkInDate: {
-              gte: previousPeriodStart,
-              lte: previousPeriodEnd,
-            },
-            status: 'COMPLETED',
-          },
-        })
-
-        let prevRevenue = 0
-        for (const booking of prevPropertyBookings) {
-          const grossBookingAmount = (booking.baseAmount || 0) + (booking.cleaningFee || 0)
-          const grossInGHS = await convertCurrency(
-            grossBookingAmount,
-            booking.currency,
-            'GHS'
-          )
-          prevRevenue += isNaN(grossInGHS) ? 0 : grossInGHS
-        }
 
         const revenueChange = prevRevenue > 0 
           ? ((revenue - prevRevenue) / prevRevenue) * 100 
@@ -641,12 +672,12 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const allCleaningTasks = await prisma.task.findMany({
-      where: {
-        type: 'CLEANING',
-      },
-    })
-    const readyForGuestTasks = allCleaningTasks.filter((t: any) => t.isReadyForGuest === true).length
+    // Calculate overall occupancy rate for the period
+    // Occupancy = (total nights booked / total available nights) * 100
+    const totalNightsBooked = periodBookings.reduce((sum, booking) => sum + (booking.nights || 0), 0)
+    const daysInPeriod = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const totalAvailableNights = activeProperties * daysInPeriod
+    const occupancyRate = totalAvailableNights > 0 ? Math.min((totalNightsBooked / totalAvailableNights) * 100, 100) : 0
 
     // Check-in metrics
     const today = new Date()
@@ -847,7 +878,7 @@ export async function GET(request: NextRequest) {
       // New feature metrics
       lowStockItems: lowStockCount,
       pendingCleaningTasks,
-      readyForGuestTasks,
+      occupancyRate,
       upcomingCheckIns: upcomingCheckIns.map(booking => ({
         id: booking.id,
         checkInDate: booking.checkInDate,

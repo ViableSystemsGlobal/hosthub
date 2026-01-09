@@ -136,6 +136,11 @@ export async function generateChatCompletion(
         })
         return response.choices[0].message.content || ''
       } catch (error: any) {
+        if (error.status === 401 || error.status === 403) {
+          throw new Error(
+            'OpenAI API key is invalid or expired. Please check your API key in Settings → AI Providers.'
+          )
+        }
         if (error.status === 404 || (error.message && error.message.includes('model'))) {
           throw new Error(
             `Invalid OpenAI model: "${selectedModel}". Please check your model name in Settings → AI Providers. ` +
@@ -193,6 +198,13 @@ export async function generateChatCompletion(
         throw new Error('Unexpected response format from Anthropic')
       } catch (error: any) {
         // Provide better error messages
+        if (error.status === 401 || error.status === 403 || 
+            (error.error?.type === 'authentication_error') ||
+            (error.error?.message && error.error.message.includes('invalid x-api-key'))) {
+          throw new Error(
+            'Anthropic API key is invalid or expired. Please check your API key in Settings → AI Providers.'
+          )
+        }
         if (error.status === 404 && error.error?.message?.includes('model:')) {
           const invalidModel = error.error.message.match(/model: (\w+)/)?.[1] || selectedModel
           throw new Error(
@@ -235,6 +247,12 @@ export async function generateChatCompletion(
         const response = result.response
         return response.text()
       } catch (error: any) {
+        if (error.status === 401 || error.status === 403 || 
+            (error.message && error.message.includes('API key'))) {
+          throw new Error(
+            'Gemini API key is invalid or expired. Please check your API key in Settings → AI Providers.'
+          )
+        }
         if (error.message && error.message.includes('model')) {
           throw new Error(
             `Invalid Gemini model: "${selectedModel}". Please check your model name in Settings → AI Providers. ` +

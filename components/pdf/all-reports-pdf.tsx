@@ -118,45 +118,47 @@ const createStyles = (themeColor: string = '#f97316') => StyleSheet.create({
     marginBottom: 6,
   },
   summary: {
-    marginBottom: 6,
-    padding: 6,
+    marginBottom: 10,
+    padding: 10,
     backgroundColor: '#f9fafb',
     border: '1 solid #e5e7eb',
     borderRadius: 4,
+    flexDirection: 'column',
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 2,
+  summaryText: {
+    fontSize: 10,
+    marginBottom: 6,
+    lineHeight: 1.4,
   },
   table: {
     border: '1 solid #e5e7eb',
     borderRadius: 2,
-    overflow: 'hidden',
   },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f3f4f6',
+    minHeight: 20,
   },
   tableHeaderCellWrapper: {
     borderRight: '1 solid #e5e7eb',
-    overflow: 'hidden',
+    paddingVertical: 5,
+    paddingHorizontal: 4,
   },
   tableHeaderCell: {
-    padding: 5,
     fontWeight: 700,
     fontSize: 8,
   },
   tableRow: {
     flexDirection: 'row',
     borderTop: '1 solid #e5e7eb',
+    minHeight: 18,
   },
   tableCellWrapper: {
     borderRight: '1 solid #e5e7eb',
-    overflow: 'hidden',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
   },
   tableCell: {
-    padding: 5,
     fontSize: 8,
   },
   receiptsPage: {
@@ -328,16 +330,15 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
 
           {/* All Report Types for This Property */}
           {reportSections.map((section, idx) => (
-            <View key={section.key + idx} style={styles.section} wrap={false}>
+            <View key={section.key + idx} style={styles.section}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
 
               {section.summary && (
                 <View style={styles.summary}>
-                  {Object.entries(section.summary).map(([k, v]) => (
-                    <View key={k} style={styles.summaryRow}>
-                      <Text>{k}</Text>
-                      <Text>{formatValue(v)}</Text>
-                    </View>
+                  {Object.entries(section.summary).map(([k, v], i) => (
+                    <Text key={i} style={styles.summaryText}>
+                      {k}: {formatValue(v)}
+                    </Text>
                   ))}
                 </View>
               )}
@@ -364,20 +365,23 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
                     </View>
                     {section.rows.slice(0, 200).map((row, rIdx) => (
                       <View key={rIdx} style={styles.tableRow}>
-                        {section.headers!.map((h, cIdx) => (
-                          <View 
-                            key={h + cIdx} 
-                        style={[
-                          styles.tableCellWrapper,
-                          { width: columnWidths[cIdx] },
-                          cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
-                        ]}
-                          >
-                            <Text style={styles.tableCell} wrap>
-                              {formatValue(row[h])}
-                            </Text>
-                          </View>
-                        ))}
+                    {section.headers!.map((h, cIdx) => {
+                      const value = Array.isArray(row) ? row[cIdx] : (row as any)[h]
+                      return (
+                        <View 
+                          key={h + cIdx} 
+                      style={[
+                        styles.tableCellWrapper,
+                        { width: columnWidths[cIdx] },
+                        cIdx === section.headers!.length - 1 ? { borderRight: 0 } : {}
+                      ]}
+                        >
+                          <Text style={styles.tableCell} wrap>
+                            {formatValue(value)}
+                          </Text>
+                        </View>
+                      )
+                    })}
                       </View>
                     ))}
                   </View>

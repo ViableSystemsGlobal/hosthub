@@ -129,6 +129,20 @@ export async function POST(request: NextRequest) {
       themeColor: { key: 'THEME_COLOR', category: 'general' },
       fxRateGHS: { key: 'FX_RATE_GHS', category: 'general' },
       fxRateUSD: { key: 'FX_RATE_USD', category: 'general' },
+      fxRateFormat: { key: 'FX_RATE_FORMAT', category: 'general' },
+    }
+
+    // Handle FX rate format conversion
+    // FX_RATE_GHS is always stored as "1 GHS = X USD" format
+    if (body.fxRateGHS !== undefined && body.fxRateFormat !== undefined) {
+      const rateValue = parseFloat(body.fxRateGHS as string)
+      if (!isNaN(rateValue) && rateValue > 0) {
+        // If user entered USD→GHS format (e.g., 11.5), convert to GHS→USD (0.0869)
+        if (body.fxRateFormat === 'usdToGhs') {
+          body.fxRateGHS = (1 / rateValue).toFixed(6)
+        }
+        // If user entered GHS→USD format (e.g., 0.0869), keep as is
+      }
     }
 
     // Update or create each setting
@@ -156,7 +170,7 @@ export async function POST(request: NextRequest) {
     await Promise.all(updates)
 
     // Clear FX rates cache when exchange rates are updated
-    if (body.fxRateGHS !== undefined || body.fxRateUSD !== undefined) {
+    if (body.fxRateGHS !== undefined || body.fxRateUSD !== undefined || body.fxRateFormat !== undefined) {
       clearFxRatesCache()
     }
 

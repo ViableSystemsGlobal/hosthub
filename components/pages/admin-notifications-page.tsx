@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format } from 'date-fns'
 import { Mail, MessageSquare, RefreshCw, Loader2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { Pagination } from '@/components/ui/pagination'
 
 // Local constants for notification types, channels, and statuses
 const NotificationType = {
@@ -69,6 +70,8 @@ interface Notification {
 export function AdminNotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
   const [filterChannel, setFilterChannel] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
@@ -108,6 +111,7 @@ export function AdminNotificationsPage() {
 
   useEffect(() => {
     fetchNotifications()
+    setCurrentPage(1) // Reset to first page when filters change
   }, [filterChannel, filterStatus])
 
   const getTypeLabel = (type: string) => {
@@ -230,7 +234,7 @@ export function AdminNotificationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {notifications.map((notification) => (
+                  {notifications.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((notification) => (
                     <TableRow key={notification.id}>
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(notification.createdAt), 'MMM d, yyyy HH:mm')}
@@ -265,6 +269,15 @@ export function AdminNotificationsPage() {
                   ))}
                 </TableBody>
               </Table>
+              {notifications.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(notifications.length / pageSize)}
+                  onPageChange={setCurrentPage}
+                  pageSize={pageSize}
+                  totalItems={notifications.length}
+                />
+              )}
             </div>
           )}
         </CardContent>

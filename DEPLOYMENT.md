@@ -128,31 +128,41 @@ npx prisma generate
 npm run db:seed
 ```
 
-## Step 4: Set Up Cron Jobs
+## Step 4: Set Up Cron Jobs (Automatic)
 
-SSH into your VPS and edit crontab:
+### Option A: Automatic Setup (Recommended)
 
+**EasyPanel Post-Deploy Command:**
+
+1. Go to EasyPanel → Your App → **Settings**
+2. Find **"Post Deploy Command"** or **"Startup Script"**
+3. Add: `bash scripts/post-deploy.sh`
+4. Save and redeploy
+
+Cron jobs will be automatically set up on every deployment! 🎉
+
+**Or run manually once:**
 ```bash
-crontab -e
+npm run setup:cron
 ```
 
-Add these lines (replace `YOUR_DOMAIN` and `YOUR_CRON_SECRET`):
+### Option B: Manual Setup
 
+If you prefer manual setup, see `CRON_SETUP.md` for detailed instructions.
+
+**Quick manual setup:**
 ```bash
-# AI Reports (every hour)
-0 * * * * curl -X GET https://YOUR_DOMAIN.com/api/ai-reports/execute -H "Authorization: Bearer YOUR_CRON_SECRET" > /dev/null 2>&1
+# SSH into your VPS
+ssh user@your-vps-ip
 
-# Reminders (every hour)
-0 * * * * curl -X GET https://YOUR_DOMAIN.com/api/reminders/run -H "Authorization: Bearer YOUR_CRON_SECRET" > /dev/null 2>&1
+# Navigate to app
+cd /path/to/your/app
 
-# Recurring Tasks (daily at midnight)
-0 0 * * * curl -X GET https://YOUR_DOMAIN.com/api/recurring-tasks/generate -H "Authorization: Bearer YOUR_CRON_SECRET" > /dev/null 2>&1
-
-# Reports (every hour)
-0 * * * * curl -X GET https://YOUR_DOMAIN.com/api/reports/execute -H "Authorization: Bearer YOUR_CRON_SECRET" > /dev/null 2>&1
+# Run setup script
+npm run setup:cron
 ```
 
-**Or use the script method** (see `CRON_SETUP.md` for details)
+**See `AUTO_CRON_SETUP.md` for complete automatic setup guide.**
 
 ## Step 5: Configure Reverse Proxy (Nginx)
 

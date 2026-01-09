@@ -42,6 +42,7 @@ import { Plus, AlertCircle, CheckSquare, Square, Trash2, Download, Loader2 } fro
 import Link from 'next/link'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
 import { toast } from '@/lib/toast'
+import { Pagination } from '@/components/ui/pagination'
 
 export function AdminIssuesPage() {
   const router = useRouter()
@@ -50,9 +51,12 @@ export function AdminIssuesPage() {
   const [selectedIssues, setSelectedIssues] = useState<Set<string>>(new Set())
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     fetchIssues()
+    setCurrentPage(1) // Reset to first page when filter changes
   }, [filterStatus])
 
   useEffect(() => {
@@ -90,10 +94,20 @@ export function AdminIssuesPage() {
   }
 
   const handleSelectAll = () => {
-    if (selectedIssues.size === issues.length) {
-      setSelectedIssues(new Set())
+    const currentPageIssues = issues.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const currentPageIds = new Set(currentPageIssues.map(i => i.id))
+    const allCurrentPageSelected = currentPageIds.size > 0 && Array.from(currentPageIds).every(id => selectedIssues.has(id))
+    
+    if (allCurrentPageSelected) {
+      // Deselect all on current page
+      const newSelected = new Set(selectedIssues)
+      currentPageIds.forEach(id => newSelected.delete(id))
+      setSelectedIssues(newSelected)
     } else {
-      setSelectedIssues(new Set(issues.map(i => i.id)))
+      // Select all on current page
+      const newSelected = new Set(selectedIssues)
+      currentPageIds.forEach(id => newSelected.add(id))
+      setSelectedIssues(newSelected)
     }
   }
 
@@ -390,108 +404,122 @@ export function AdminIssuesPage() {
               <p className="text-gray-500">No issues found</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <button
-                      onClick={handleSelectAll}
-                      className="flex items-center justify-center"
-                    >
-                      {selectedIssues.size === issues.length && issues.length > 0 ? (
-                        <CheckSquare className="w-4 h-4" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
-                    </button>
-                  </TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Maintenance Person</TableHead>
-                  <TableHead>Attachments</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {issues.map((issue) => (
-                  <TableRow key={issue.id}>
-                    <TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <button
-                        onClick={() => handleSelectIssue(issue.id)}
+                        onClick={handleSelectAll}
                         className="flex items-center justify-center"
                       >
-                        {selectedIssues.has(issue.id) ? (
-                          <CheckSquare className="w-4 h-4" />
-                        ) : (
-                          <Square className="w-4 h-4" />
-                        )}
+                        {(() => {
+                          const currentPageIssues = issues.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                          const currentPageIds = new Set(currentPageIssues.map(i => i.id))
+                          const allSelected = currentPageIds.size > 0 && Array.from(currentPageIds).every(id => selectedIssues.has(id))
+                          return allSelected ? (
+                            <CheckSquare className="w-4 h-4" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )
+                        })()}
                       </button>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {issue.Property?.nickname || issue.Property?.name || '-'}
-                    </TableCell>
-                    <TableCell>{issue.title}</TableCell>
-                    <TableCell>
-                      <Badge className={getPriorityColor(issue.priority)}>
-                        {issue.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={issue.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(issue.id, value)
-                        }
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="OPEN">Open</SelectItem>
-                          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                          <SelectItem value="RESOLVED">Resolved</SelectItem>
-                          <SelectItem value="CLOSED">Closed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {issue.AssignedContact ? (
-                        <div>
-                          <div className="font-medium text-sm">{issue.AssignedContact.name}</div>
-                          {issue.AssignedContact.company && (
-                            <div className="text-xs text-gray-500">{issue.AssignedContact.company}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">Unassigned</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {issue.IssueAttachment?.length > 0 ? (
-                        <span className="text-sm text-gray-600">
-                          {issue.IssueAttachment.length} file{issue.IssueAttachment.length > 1 ? 's' : ''}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">No attachments</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(issue.createdAt), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/issues/${issue.id}`}>
-                        <Button variant="outline" size="sm">
-                          View
-                        </Button>
-                      </Link>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Maintenance Person</TableHead>
+                    <TableHead>Attachments</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {issues.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((issue) => (
+                    <TableRow key={issue.id}>
+                      <TableCell>
+                        <button
+                          onClick={() => handleSelectIssue(issue.id)}
+                          className="flex items-center justify-center"
+                        >
+                          {selectedIssues.has(issue.id) ? (
+                            <CheckSquare className="w-4 h-4" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {issue.Property?.nickname || issue.Property?.name || '-'}
+                      </TableCell>
+                      <TableCell>{issue.title}</TableCell>
+                      <TableCell>
+                        <Badge className={getPriorityColor(issue.priority)}>
+                          {issue.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={issue.status}
+                          onValueChange={(value) =>
+                            handleStatusChange(issue.id, value)
+                          }
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="OPEN">Open</SelectItem>
+                            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                            <SelectItem value="RESOLVED">Resolved</SelectItem>
+                            <SelectItem value="CLOSED">Closed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {issue.AssignedContact ? (
+                          <div>
+                            <div className="font-medium text-sm">{issue.AssignedContact.name}</div>
+                            {issue.AssignedContact.company && (
+                              <div className="text-xs text-gray-500">{issue.AssignedContact.company}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Unassigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {issue.IssueAttachment?.length > 0 ? (
+                          <span className="text-sm text-gray-600">
+                            {issue.IssueAttachment.length} file{issue.IssueAttachment.length > 1 ? 's' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">No attachments</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(issue.createdAt), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/issues/${issue.id}`}>
+                          <Button variant="outline" size="sm">
+                            View
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(issues.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={issues.length}
+              />
+            </>
           )}
         </CardContent>
       </Card>
