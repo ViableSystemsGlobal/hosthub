@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { GuestContactStatus } from '@prisma/client'
+import { GuestContactStatus, Currency } from '@prisma/client'
 
 export async function POST(
   request: NextRequest,
@@ -14,7 +14,7 @@ export async function POST(
     }
 
     // Only admins, managers, and operations can convert guest contacts to bookings
-    if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
+    if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -33,8 +33,8 @@ export async function POST(
       return NextResponse.json({ error: 'Guest contact not found' }, { status: 404 })
     }
 
-    // Managers can only convert contacts for their assigned properties
-    if (user.role === 'MANAGER' && guestContact.propertyId) {
+    // Managers and general managers can only convert contacts for their assigned properties
+    if ((user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') && guestContact.propertyId) {
       if (guestContact.Property?.managerId !== user.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
@@ -74,7 +74,7 @@ export async function POST(
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
-    if (user.role === 'MANAGER' && property.managerId !== user.id) {
+    if ((user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') && property.managerId !== user.id) {
       return NextResponse.json(
         { error: 'You can only create bookings for properties you manage' },
         { status: 403 }
@@ -84,7 +84,7 @@ export async function POST(
     // Import booking creation logic
     const { differenceInDays } = await import('date-fns')
     const { convertCurrency, getFxRate } = await import('@/lib/currency')
-    const { BookingSource, BookingStatus, Currency, PaymentReceivedBy, TaskType, TaskStatus } = await import('@prisma/client')
+    const { BookingSource, BookingStatus, PaymentReceivedBy, TaskType, TaskStatus } = await import('@prisma/client')
 
     // Calculate nights
     const nights = differenceInDays(new Date(checkOutDate), new Date(checkInDate))
