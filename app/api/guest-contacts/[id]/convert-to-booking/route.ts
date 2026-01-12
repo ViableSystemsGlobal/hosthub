@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth-helpers'
-import { GuestContactStatus, Currency } from '@prisma/client'
+import { GuestContactStatus, Currency, BookingSource, BookingStatus, PaymentReceivedBy, TaskType, TaskStatus } from '@prisma/client'
 
 export async function POST(
   request: NextRequest,
@@ -84,7 +84,6 @@ export async function POST(
     // Import booking creation logic
     const { differenceInDays } = await import('date-fns')
     const { convertCurrency, getFxRate } = await import('@/lib/currency')
-    const { BookingSource, BookingStatus, PaymentReceivedBy, TaskType, TaskStatus } = await import('@prisma/client')
 
     // Calculate nights
     const nights = differenceInDays(new Date(checkOutDate), new Date(checkInDate))

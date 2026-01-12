@@ -99,11 +99,12 @@ export function isManager(user: { role: UserRole }): boolean {
 
 // Helper to check if user can edit/delete (admins and general managers)
 export function canEditDelete(user: { role: UserRole }): boolean {
-  return [
+  const allowedRoles: UserRole[] = [
     UserRole.SUPER_ADMIN,
     UserRole.ADMIN,
     UserRole.FINANCE,
     UserRole.OPERATIONS,
     UserRole.GENERAL_MANAGER,
-  ].includes(user.role)
+  ]
+  return allowedRoles.includes(user.role)
 }

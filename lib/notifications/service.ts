@@ -580,7 +580,7 @@ export async function sendBookingNotification(
 
   // Send notification to owner (using existing sendNotification function)
   // Include both EMAIL and SMS channels if owner has phone
-  const ownerChannels = [NotificationChannel.EMAIL]
+  const ownerChannels: NotificationChannel[] = [NotificationChannel.EMAIL]
   if (ownerPhone) {
     ownerChannels.push(NotificationChannel.SMS)
   }
