@@ -91,3 +91,19 @@ export async function requireAdmin(request?: NextRequest) {
 export async function requireOwner(request?: NextRequest) {
   return requireRole([UserRole.OWNER], request)
 }
+
+// Helper to check if user is a manager (regular or general)
+export function isManager(user: { role: UserRole }): boolean {
+  return user.role === UserRole.MANAGER || user.role === UserRole.GENERAL_MANAGER
+}
+
+// Helper to check if user can edit/delete (admins and general managers)
+export function canEditDelete(user: { role: UserRole }): boolean {
+  return [
+    UserRole.SUPER_ADMIN,
+    UserRole.ADMIN,
+    UserRole.FINANCE,
+    UserRole.OPERATIONS,
+    UserRole.GENERAL_MANAGER,
+  ].includes(user.role)
+}

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Show all contacts (admin/manager view)
-      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Company contacts can only be created by admins/managers
-      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
         return NextResponse.json(
           { error: 'Only admins and managers can create company contacts' },
           { status: 403 }

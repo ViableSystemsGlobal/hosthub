@@ -22,12 +22,14 @@ import {
   Zap,
   Sparkles,
   Package,
+  Users,
 } from 'lucide-react'
 
 const navItems = [
   { href: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/manager/properties', label: 'Properties', icon: Building2 },
   { href: '/manager/bookings', label: 'Bookings', icon: Calendar },
+  { href: '/manager/guest-contacts', label: 'Guest Contacts', icon: Users },
   { href: '/manager/checkin', label: 'Check-In', icon: CheckCircle2 },
   { href: '/manager/cleaning-tasks', label: 'Cleaning Tasks', icon: Sparkles },
   { href: '/manager/inventory-entry', label: 'Inventory Entry', icon: Package },

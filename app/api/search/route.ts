@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Search Issues (for admins and managers)
-    if (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+    if (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
       const issuesWhere: any = {
         OR: [
           { title: { contains: searchTerm, mode: 'insensitive' } },

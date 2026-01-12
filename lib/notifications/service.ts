@@ -322,6 +322,11 @@ export async function sendIssueNotification(
 
 /**
  * Send booking notification
+ * Sends emails to:
+ * 1. Guest (if guestEmail exists) - confirmation email
+ * 2. Owner - internal notification
+ * 3. Super Admin(s) - internal notification
+ * 4. Manager (if property has one) - internal notification
  */
 export async function sendBookingNotification(
   bookingId: string,
@@ -331,7 +336,18 @@ export async function sendBookingNotification(
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
-      Property: true,
+      Property: {
+        include: {
+          User: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+      },
+      Owner: true,
     },
   })
 
@@ -350,24 +366,6 @@ export async function sendBookingNotification(
     }
   } catch (error) {
     // Use default if settings not available
-  }
-
-  let title = ''
-  let message = ''
-
-  switch (event) {
-    case 'created':
-      title = `New Booking: ${propertyName}`
-      message = `A new booking has been created for ${propertyName}. Guest: ${booking.guestName || 'N/A'}, Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`
-      break
-    case 'updated':
-      title = `Booking Updated: ${propertyName}`
-      message = `A booking for ${propertyName} has been updated.`
-      break
-    case 'reminder':
-      title = `Booking Reminder: ${propertyName}`
-      message = `Reminder: You have a booking at ${propertyName} on ${new Date(booking.checkInDate).toLocaleDateString()}.`
-      break
   }
 
   // Check notification preferences from settings
@@ -402,28 +400,39 @@ export async function sendBookingNotification(
     return // Don't send notification if disabled for this event
   }
 
-  // Send both email and SMS for booking notifications
-  const channels: NotificationChannel[] = [NotificationChannel.EMAIL, NotificationChannel.SMS]
-  
-  let notificationType: NotificationType
-  switch (event) {
-    case 'created':
-      notificationType = NotificationType.BOOKING_CREATED
-      break
-    case 'updated':
-      notificationType = NotificationType.BOOKING_UPDATED
-      break
-    case 'reminder':
-      notificationType = NotificationType.BOOKING_REMINDER
-      break
-    default:
-      notificationType = NotificationType.OTHER
+  // Get all super admins (include phoneNumber for SMS)
+  const superAdmins = await prisma.user.findMany({
+    where: { role: 'SUPER_ADMIN' },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phoneNumber: true,
+    },
+  })
+
+  // Get manager if property has one (include phoneNumber for SMS)
+  let managerEmail: string | null = null
+  let managerName: string | null = null
+  let managerPhone: string | null = null
+  if (booking.Property.managerId) {
+    const manager = await prisma.user.findUnique({
+      where: { id: booking.Property.managerId },
+      select: {
+        email: true,
+        name: true,
+        phoneNumber: true,
+      },
+    })
+    if (manager) {
+      managerEmail = manager.email
+      managerName = manager.name || null
+      managerPhone = manager.phoneNumber || null
+    }
   }
 
-  // Get owner for template variables
-  const owner = await prisma.owner.findUnique({
-    where: { id: ownerId },
-  })
+  // Get owner phone for SMS
+  const ownerPhone = booking.Owner.phoneNumber || null
 
   // Determine template type based on event
   let templateType: string
@@ -439,12 +448,24 @@ export async function sendBookingNotification(
       templateType = 'booking_confirmation'
   }
 
-  // Prepare template variables
-  // Note: This email is sent to the OWNER, not the guest
-  // So we use ownerName instead of guestName in the greeting
-  const templateVariables = {
-    ownerName: owner?.name || 'Property Owner',
-    guestName: booking.guestName || 'Guest', // Keep for reference in the message
+  // Prepare template variables for guest email
+  const guestTemplateVariables = {
+    guestName: booking.guestName || 'Guest',
+    propertyName: propertyName,
+    checkInDate: new Date(booking.checkInDate).toLocaleDateString(),
+    checkOutDate: new Date(booking.checkOutDate).toLocaleDateString(),
+    nights: booking.nights.toString(),
+    totalAmount: (booking.baseAmount + booking.cleaningFee).toFixed(2),
+    currency: booking.currency,
+    bookingId: booking.id,
+  }
+
+  // Prepare template variables for internal notifications
+  const internalTemplateVariables = {
+    ownerName: booking.Owner.name || 'Property Owner',
+    guestName: booking.guestName || 'Guest',
+    guestEmail: booking.guestEmail || 'N/A',
+    guestPhoneNumber: booking.guestPhoneNumber || 'N/A',
     propertyName: propertyName,
     checkInDate: new Date(booking.checkInDate).toLocaleDateString(),
     checkOutDate: new Date(booking.checkOutDate).toLocaleDateString(),
@@ -454,22 +475,299 @@ export async function sendBookingNotification(
     bookingId: booking.id,
   }
 
-  await sendNotification({
-    ownerId,
-    type: notificationType,
-    channels,
-    title,
-    message,
-    actionUrl: `${baseUrl}/admin/bookings/${bookingId}`,
-    actionText: 'View Booking',
-    templateType,
-    templateVariables,
-    metadata: {
-      bookingId,
-      event,
-      propertyId: booking.propertyId,
-    },
-  })
+  // Send email to guest (if guestEmail exists) - only for created events
+  if (event === 'created' && booking.guestEmail) {
+    try {
+      console.log(`[Booking Notification] Attempting to send guest email to: ${booking.guestEmail}`)
+      const { renderEmailTemplateByType } = await import('./template-renderer')
+      const { generatePaystackStyleEmailHTML } = await import('./email-template')
+      const { sendEmail } = await import('./email')
+
+      const guestTemplate = await renderEmailTemplateByType('guest_booking_confirmation', guestTemplateVariables)
+      if (guestTemplate) {
+        console.log(`[Booking Notification] Using guest template: ${guestTemplate.subject}`)
+        const emailHtml = await generatePaystackStyleEmailHTML({
+          title: guestTemplate.subject,
+          content: guestTemplate.body,
+        })
+
+        const result = await sendEmail({
+          to: booking.guestEmail,
+          subject: guestTemplate.subject,
+          html: emailHtml,
+        })
+        
+        if (result.success) {
+          console.log(`[Booking Notification] ✅ Guest email sent successfully to ${booking.guestEmail}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send guest email: ${result.error}`)
+        }
+      } else {
+        console.log(`[Booking Notification] Guest template not found, using fallback`)
+        // Fallback if template doesn't exist
+        const emailHtml = await generatePaystackStyleEmailHTML({
+          title: `Booking Confirmation - ${propertyName}`,
+          content: `Dear ${booking.guestName || 'Guest'},<br><br>Your booking has been confirmed!<br><br>Property: ${propertyName}<br>Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}<br>Check-out: ${new Date(booking.checkOutDate).toLocaleDateString()}<br>Nights: ${booking.nights}<br>Total Amount: ${booking.currency} ${(booking.baseAmount + booking.cleaningFee).toFixed(2)}<br><br>Thank you for your booking!`,
+        })
+
+        const result = await sendEmail({
+          to: booking.guestEmail,
+          subject: `Booking Confirmation - ${propertyName}`,
+          html: emailHtml,
+        })
+        
+        if (result.success) {
+          console.log(`[Booking Notification] ✅ Guest email sent successfully (fallback) to ${booking.guestEmail}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send guest email (fallback): ${result.error}`)
+        }
+      }
+    } catch (error) {
+      console.error('[Booking Notification] ❌ Error sending guest booking confirmation email:', error)
+    }
+  } else if (event === 'created' && !booking.guestEmail) {
+    console.log('[Booking Notification] ⚠️ No guest email provided, skipping guest email notification')
+  }
+
+  // Send SMS to guest (if guestPhoneNumber exists) - only for created events
+  if (event === 'created' && booking.guestPhoneNumber) {
+    try {
+      console.log(`[Booking Notification] Attempting to send guest SMS to: ${booking.guestPhoneNumber}`)
+      
+      const guestSmsMessage = `Hi ${booking.guestName || 'Guest'}! Your booking at ${propertyName} is confirmed. Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}, Check-out: ${new Date(booking.checkOutDate).toLocaleDateString()}. Total: ${booking.currency} ${(booking.baseAmount + booking.cleaningFee).toFixed(2)}. Thank you!`
+      
+      const result = await sendSMS(booking.guestPhoneNumber, guestSmsMessage)
+      
+      if (result.success) {
+        console.log(`[Booking Notification] ✅ Guest SMS sent successfully to ${booking.guestPhoneNumber}`)
+      } else {
+        console.error(`[Booking Notification] ❌ Failed to send guest SMS: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('[Booking Notification] ❌ Error sending guest SMS:', error)
+    }
+  } else if (event === 'created' && !booking.guestPhoneNumber) {
+    console.log('[Booking Notification] ⚠️ No guest phone number provided, skipping guest SMS notification')
+  }
+
+  // Send internal notifications to owner, super admins, and manager
+  const internalTitle = event === 'created' 
+    ? `New Booking: ${propertyName}`
+    : event === 'updated'
+    ? `Booking Updated: ${propertyName}`
+    : `Booking Reminder: ${propertyName}`
+
+  const internalMessage = event === 'created'
+    ? `A new booking has been created for ${propertyName}. Guest: ${booking.guestName || 'N/A'}, Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}`
+    : event === 'updated'
+    ? `A booking for ${propertyName} has been updated.`
+    : `Reminder: You have a booking at ${propertyName} on ${new Date(booking.checkInDate).toLocaleDateString()}.`
+
+  let notificationType: NotificationType
+  switch (event) {
+    case 'created':
+      notificationType = NotificationType.BOOKING_CREATED
+      break
+    case 'updated':
+      notificationType = NotificationType.BOOKING_UPDATED
+      break
+    case 'reminder':
+      notificationType = NotificationType.BOOKING_REMINDER
+      break
+    default:
+      notificationType = NotificationType.OTHER
+  }
+
+  // Send notification to owner (using existing sendNotification function)
+  // Include both EMAIL and SMS channels if owner has phone
+  const ownerChannels = [NotificationChannel.EMAIL]
+  if (ownerPhone) {
+    ownerChannels.push(NotificationChannel.SMS)
+  }
+  
+  try {
+    console.log(`[Booking Notification] Attempting to send owner notification to owner: ${ownerId} (channels: ${ownerChannels.join(', ')})`)
+    await sendNotification({
+      ownerId,
+      type: notificationType,
+      channels: ownerChannels,
+      title: internalTitle,
+      message: internalMessage,
+      actionUrl: `${baseUrl}/admin/bookings/${bookingId}`,
+      actionText: 'View Booking',
+      templateType: 'booking_notification_internal',
+      templateVariables: internalTemplateVariables,
+      metadata: {
+        bookingId,
+        event,
+        propertyId: booking.propertyId,
+      },
+    })
+    console.log(`[Booking Notification] ✅ Owner notification sent successfully`)
+  } catch (err) {
+    console.error('[Booking Notification] ❌ Failed to send owner notification:', err)
+  }
+
+  // Send email to super admins
+  console.log(`[Booking Notification] Found ${superAdmins.length} super admin(s)`)
+  for (const admin of superAdmins) {
+    if (admin.email) {
+      try {
+        console.log(`[Booking Notification] Attempting to send email to super admin: ${admin.email}`)
+        const { renderEmailTemplateByType } = await import('./template-renderer')
+        const { generatePaystackStyleEmailHTML } = await import('./email-template')
+        const { sendEmail } = await import('./email')
+
+        const adminTemplate = await renderEmailTemplateByType('booking_notification_internal', {
+          ...internalTemplateVariables,
+          recipientName: admin.name || 'Admin',
+        })
+        
+        if (adminTemplate) {
+          const emailHtml = await generatePaystackStyleEmailHTML({
+            title: adminTemplate.subject,
+            content: adminTemplate.body,
+            actionUrl: `${baseUrl}/admin/bookings/${bookingId}`,
+            actionText: 'View Booking',
+          })
+
+          const result = await sendEmail({
+            to: admin.email,
+            subject: adminTemplate.subject,
+            html: emailHtml,
+          })
+          
+          if (result.success) {
+            console.log(`[Booking Notification] ✅ Super admin email sent successfully to ${admin.email}`)
+          } else {
+            console.error(`[Booking Notification] ❌ Failed to send super admin email: ${result.error}`)
+          }
+        } else {
+          console.log(`[Booking Notification] Admin template not found, using fallback`)
+          // Fallback
+          const emailHtml = await generatePaystackStyleEmailHTML({
+            title: internalTitle,
+            content: internalMessage.replace(/\n/g, '<br>'),
+            actionUrl: `${baseUrl}/admin/bookings/${bookingId}`,
+            actionText: 'View Booking',
+          })
+
+          const result = await sendEmail({
+            to: admin.email,
+            subject: internalTitle,
+            html: emailHtml,
+          })
+          
+          if (result.success) {
+            console.log(`[Booking Notification] ✅ Super admin email sent successfully (fallback) to ${admin.email}`)
+          } else {
+            console.error(`[Booking Notification] ❌ Failed to send super admin email (fallback): ${result.error}`)
+          }
+        }
+      } catch (error) {
+        console.error(`[Booking Notification] ❌ Error sending email to super admin ${admin.email}:`, error)
+      }
+    } else {
+      console.log(`[Booking Notification] ⚠️ Super admin ${admin.name || admin.id} has no email address`)
+    }
+    
+    // Send SMS to super admin if they have a phone number
+    if (admin.phoneNumber) {
+      try {
+        console.log(`[Booking Notification] Attempting to send SMS to super admin: ${admin.phoneNumber}`)
+        const adminSmsMessage = `New Booking: ${propertyName}. Guest: ${booking.guestName || 'N/A'}, Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}, ${booking.nights} nights. Total: ${booking.currency} ${booking.totalPayout.toFixed(2)}`
+        
+        const smsResult = await sendSMS(admin.phoneNumber, adminSmsMessage)
+        
+        if (smsResult.success) {
+          console.log(`[Booking Notification] ✅ Super admin SMS sent successfully to ${admin.phoneNumber}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send super admin SMS: ${smsResult.error}`)
+        }
+      } catch (smsError) {
+        console.error(`[Booking Notification] ❌ Error sending SMS to super admin ${admin.phoneNumber}:`, smsError)
+      }
+    }
+  }
+
+  // Send email to manager (if exists)
+  if (managerEmail) {
+    try {
+      console.log(`[Booking Notification] Attempting to send email to manager: ${managerEmail}`)
+      const { renderEmailTemplateByType } = await import('./template-renderer')
+      const { generatePaystackStyleEmailHTML } = await import('./email-template')
+      const { sendEmail } = await import('./email')
+
+      const managerTemplate = await renderEmailTemplateByType('booking_notification_internal', {
+        ...internalTemplateVariables,
+        recipientName: managerName || 'Manager',
+      })
+      
+      if (managerTemplate) {
+        const emailHtml = await generatePaystackStyleEmailHTML({
+          title: managerTemplate.subject,
+          content: managerTemplate.body,
+          actionUrl: `${baseUrl}/manager/bookings/${bookingId}`,
+          actionText: 'View Booking',
+        })
+
+        const result = await sendEmail({
+          to: managerEmail,
+          subject: managerTemplate.subject,
+          html: emailHtml,
+        })
+        
+        if (result.success) {
+          console.log(`[Booking Notification] ✅ Manager email sent successfully to ${managerEmail}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send manager email: ${result.error}`)
+        }
+      } else {
+        console.log(`[Booking Notification] Manager template not found, using fallback`)
+        // Fallback
+        const emailHtml = await generatePaystackStyleEmailHTML({
+          title: internalTitle,
+          content: internalMessage.replace(/\n/g, '<br>'),
+          actionUrl: `${baseUrl}/manager/bookings/${bookingId}`,
+          actionText: 'View Booking',
+        })
+
+        const result = await sendEmail({
+          to: managerEmail,
+          subject: internalTitle,
+          html: emailHtml,
+        })
+        
+        if (result.success) {
+          console.log(`[Booking Notification] ✅ Manager email sent successfully (fallback) to ${managerEmail}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send manager email (fallback): ${result.error}`)
+        }
+      }
+    } catch (error) {
+      console.error(`[Booking Notification] ❌ Error sending email to manager ${managerEmail}:`, error)
+    }
+    
+    // Send SMS to manager if they have a phone number
+    if (managerPhone) {
+      try {
+        console.log(`[Booking Notification] Attempting to send SMS to manager: ${managerPhone}`)
+        const managerSmsMessage = `New Booking: ${propertyName}. Guest: ${booking.guestName || 'N/A'}, Check-in: ${new Date(booking.checkInDate).toLocaleDateString()}, ${booking.nights} nights. Total: ${booking.currency} ${booking.totalPayout.toFixed(2)}`
+        
+        const smsResult = await sendSMS(managerPhone, managerSmsMessage)
+        
+        if (smsResult.success) {
+          console.log(`[Booking Notification] ✅ Manager SMS sent successfully to ${managerPhone}`)
+        } else {
+          console.error(`[Booking Notification] ❌ Failed to send manager SMS: ${smsResult.error}`)
+        }
+      } catch (smsError) {
+        console.error(`[Booking Notification] ❌ Error sending SMS to manager ${managerPhone}:`, smsError)
+      }
+    }
+  } else {
+    console.log(`[Booking Notification] ⚠️ No manager assigned to property`)
+  }
 }
 
 /**

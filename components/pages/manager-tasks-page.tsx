@@ -17,6 +17,7 @@ import { ClipboardList, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { TaskStatus, TaskType } from '@prisma/client'
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { Pagination } from '@/components/ui/pagination'
 
 interface Task {
   id: string
@@ -33,6 +34,8 @@ interface Task {
 export function ManagerTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     fetchTasks()
@@ -137,7 +140,7 @@ export function ManagerTasksPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((task) => (
+                {tasks.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((task) => (
                   <TableRow key={task.id}>
                     <TableCell className="font-medium">
                       {task.Property.name}
@@ -160,6 +163,15 @@ export function ManagerTasksPage() {
                 ))}
               </TableBody>
             </Table>
+            {tasks.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(tasks.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={tasks.length}
+              />
+            )}
           </CardContent>
         </Card>
       )}

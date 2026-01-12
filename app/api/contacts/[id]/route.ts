@@ -41,7 +41,7 @@ export async function GET(
       }
     } else {
       // Company contact - only admins/managers can view
-      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -91,7 +91,7 @@ export async function PATCH(
       }
     } else {
       // Company contact - only admins/managers can edit
-      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -158,7 +158,7 @@ export async function DELETE(
       }
     } else {
       // Company contact - only admins/managers can delete
-      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER'].includes(user.role)) {
+      if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'GENERAL_MANAGER'].includes(user.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }

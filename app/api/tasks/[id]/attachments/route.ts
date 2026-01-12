@@ -64,7 +64,7 @@ export async function POST(
     }
 
     // Only operations, managers, and admins can upload attachments
-    if (!['OPERATIONS', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,11 +16,23 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
-import { Calendar, CalendarCheck, Plus } from 'lucide-react'
+import { Calendar, CalendarCheck, Plus, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { BookingStatus, Currency } from '@prisma/client'
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { Pagination } from '@/components/ui/pagination'
+import { toast } from '@/lib/toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface Booking {
   id: string
@@ -39,8 +52,16 @@ interface Booking {
 }
 
 export function ManagerBookingsPage() {
+  const { data: session } = useSession()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [bookingToDelete, setBookingToDelete] = useState<string | null>(null)
+  const pageSize = 10
+
+  // Check if user is General Manager (can edit/delete)
+  const isGeneralManager = session?.user?.role === 'GENERAL_MANAGER'
 
   useEffect(() => {
     fetchBookings()
@@ -63,6 +84,25 @@ export function ManagerBookingsPage() {
       setBookings([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        throw new Error('Failed to delete booking')
+      }
+      toast.success('Booking deleted successfully')
+      fetchBookings()
+    } catch (error) {
+      console.error('Failed to delete booking:', error)
+      toast.error('Failed to delete booking')
+    } finally {
+      setDeleteDialogOpen(false)
+      setBookingToDelete(null)
     }
   }
 
@@ -133,10 +173,11 @@ export function ManagerBookingsPage() {
                   <TableHead>Nights</TableHead>
                   <TableHead>Payout</TableHead>
                   <TableHead>Status</TableHead>
+                  {isGeneralManager && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bookings.map((booking) => (
+                {bookings.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">
                       {booking.Property.name}
@@ -153,13 +194,64 @@ export function ManagerBookingsPage() {
                     <TableCell>
                       <Badge variant="outline">{booking.status}</Badge>
                     </TableCell>
+                    {isGeneralManager && (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Link href={`/manager/bookings/${booking.id}/edit`}>
+                            <Button variant="outline" size="sm">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setBookingToDelete(booking.id)
+                              setDeleteDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            {bookings.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(bookings.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={bookings.length}
+              />
+            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the booking.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bookingToDelete && handleDelete(bookingToDelete)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

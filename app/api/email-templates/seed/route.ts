@@ -143,6 +143,60 @@ HostHub Team`,
     isDefault: true,
     isActive: true,
   },
+  {
+    name: 'Guest Booking Confirmation',
+    type: 'guest_booking_confirmation',
+    subject: 'Booking Confirmation - {{propertyName}}',
+    body: `Dear {{guestName}},
+
+Thank you for your booking! We're excited to host you.
+
+Booking Details:
+- Property: {{propertyName}}
+- Check-in: {{checkInDate}}
+- Check-out: {{checkOutDate}}
+- Duration: {{nights}} nights
+- Total Amount: {{currency}} {{totalAmount}}
+
+Booking ID: {{bookingId}}
+
+We look forward to welcoming you!
+
+If you have any questions or need to make changes to your booking, please don't hesitate to contact us.
+
+Best regards,
+HostHub Team`,
+    variables: ['guestName', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'totalAmount', 'currency', 'bookingId'],
+    isDefault: true,
+    isActive: true,
+  },
+  {
+    name: 'Booking Notification (Internal)',
+    type: 'booking_notification_internal',
+    subject: 'New Booking: {{propertyName}}',
+    body: `Dear {{recipientName}},
+
+A new booking has been created for {{propertyName}}.
+
+Booking Details:
+- Guest Name: {{guestName}}
+- Guest Email: {{guestEmail}}
+- Guest Phone: {{guestPhoneNumber}}
+- Check-in: {{checkInDate}}
+- Check-out: {{checkOutDate}}
+- Nights: {{nights}}
+- Total Payout: {{currency}} {{totalPayout}}
+
+Booking ID: {{bookingId}}
+
+You can view and manage this booking in your dashboard.
+
+Best regards,
+HostHub Team`,
+    variables: ['recipientName', 'ownerName', 'guestName', 'guestEmail', 'guestPhoneNumber', 'propertyName', 'checkInDate', 'checkOutDate', 'nights', 'totalPayout', 'currency', 'bookingId'],
+    isDefault: true,
+    isActive: true,
+  },
 ]
 
 // POST - Seed default email templates

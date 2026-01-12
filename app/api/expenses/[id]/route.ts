@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/auth-helpers'
+import { requireAdmin, getCurrentUser, canEditDelete } from '@/lib/auth-helpers'
 import { convertCurrency } from '@/lib/currency'
 import { ExpenseCategory, Currency } from '@prisma/client'
 
@@ -37,8 +37,17 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    // Only admins and general managers can edit expenses
+    if (!canEditDelete(user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    
     const { id } = await params
-    await requireAdmin(request)
     
     const body = await request.json()
     const {
@@ -89,8 +98,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    // Only admins and general managers can delete expenses
+    if (!canEditDelete(user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    
     const { id } = await params
-    await requireAdmin()
     
     await prisma.expense.delete({
       where: { id },

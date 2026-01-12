@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -15,11 +16,23 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
-import { Receipt, Plus, DollarSign, TrendingDown } from 'lucide-react'
+import { Receipt, Plus, DollarSign, Edit, Trash2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { ExpenseCategory, Currency } from '@prisma/client'
 import { format } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
+import { Pagination } from '@/components/ui/pagination'
+import { toast } from '@/lib/toast'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface Expense {
   id: string
@@ -38,8 +51,16 @@ interface Expense {
 }
 
 export function ManagerExpensesPage() {
+  const { data: session } = useSession()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null)
+  const pageSize = 10
+
+  // Check if user is General Manager (can edit/delete)
+  const isGeneralManager = session?.user?.role === 'GENERAL_MANAGER'
 
   useEffect(() => {
     fetchExpenses()
@@ -62,6 +83,25 @@ export function ManagerExpensesPage() {
       setExpenses([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/expenses/${id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        throw new Error('Failed to delete expense')
+      }
+      toast.success('Expense deleted successfully')
+      fetchExpenses()
+    } catch (error) {
+      console.error('Failed to delete expense:', error)
+      toast.error('Failed to delete expense')
+    } finally {
+      setDeleteDialogOpen(false)
+      setExpenseToDelete(null)
     }
   }
 
@@ -139,10 +179,11 @@ export function ManagerExpensesPage() {
                   <TableHead>Description</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Amount</TableHead>
+                  {isGeneralManager && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
+                {expenses.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="font-medium">
                       {expense.Property.name}
@@ -158,13 +199,64 @@ export function ManagerExpensesPage() {
                     <TableCell>
                       {formatCurrency(expense.amount, expense.currency)}
                     </TableCell>
+                    {isGeneralManager && (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Link href={`/manager/expenses/${expense.id}/edit`}>
+                            <Button variant="outline" size="sm">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setExpenseToDelete(expense.id)
+                              setDeleteDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            {expenses.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(expenses.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={expenses.length}
+              />
+            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the expense.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => expenseToDelete && handleDelete(expenseToDelete)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -67,7 +67,7 @@ export async function PATCH(
     }
 
     // Only operations, managers, and admins can update checklists
-    if (!['OPERATIONS', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['OPERATIONS', 'MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

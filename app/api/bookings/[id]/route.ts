@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/auth-helpers'
+import { requireAdmin, getCurrentUser, canEditDelete } from '@/lib/auth-helpers'
 import { convertCurrency, getFxRate } from '@/lib/currency'
 import { BookingSource, BookingStatus, Currency, PaymentReceivedBy } from '@prisma/client'
 import { differenceInDays } from 'date-fns'
@@ -45,7 +45,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAdmin()
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    // Only admins and general managers can edit bookings
+    if (!canEditDelete(user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    
     const { id } = await params
     
     const body = await request.json()
@@ -53,6 +62,9 @@ export async function PATCH(
       source,
       externalReservationCode,
       guestName,
+      guestEmail,
+      guestPhoneNumber,
+      guestContactId,
       checkInDate,
       checkOutDate,
       baseAmount,
@@ -96,12 +108,43 @@ export async function PATCH(
       }
     }
 
+    // If guestContactId is provided, fetch guest contact details
+    let finalGuestName = guestName
+    let finalGuestEmail = guestEmail
+    let finalGuestPhoneNumber = guestPhoneNumber
+    let finalGuestContactId: string | null | undefined = undefined
+
+    if (guestContactId) {
+      try {
+        const guestContact = await prisma.guestContact.findUnique({
+          where: { id: guestContactId },
+        })
+        if (guestContact) {
+          finalGuestName = guestContact.name
+          finalGuestEmail = guestContact.email || guestEmail
+          finalGuestPhoneNumber = guestContact.phoneNumber || guestPhoneNumber
+          finalGuestContactId = guestContact.id
+        } else {
+          // Guest contact not found, clear the link
+          console.warn(`Guest contact ${guestContactId} not found, clearing link`)
+          finalGuestContactId = null
+        }
+      } catch (error) {
+        // If there's an error fetching, clear the link
+        console.error('Error fetching guest contact:', error)
+        finalGuestContactId = null
+      }
+    }
+
     const booking = await prisma.booking.update({
       where: { id },
       data: {
         source: source as BookingSource,
         externalReservationCode,
-        guestName,
+        guestName: finalGuestName !== undefined ? finalGuestName : undefined,
+        guestEmail: finalGuestEmail !== undefined ? finalGuestEmail : undefined,
+        guestPhoneNumber: finalGuestPhoneNumber !== undefined ? finalGuestPhoneNumber : undefined,
+        guestContactId: finalGuestContactId !== undefined ? finalGuestContactId : undefined,
         checkInDate: checkInDate ? new Date(checkInDate) : undefined,
         checkOutDate: checkOutDate ? new Date(checkOutDate) : undefined,
         nights,
@@ -238,7 +281,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAdmin()
+    const user = await getCurrentUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    // Only admins and general managers can delete bookings
+    if (!canEditDelete(user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    
     const { id } = await params
     
     await prisma.booking.delete({

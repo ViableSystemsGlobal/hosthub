@@ -25,15 +25,19 @@ import { Plus, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { TableSkeletonLoader } from '@/components/ui/skeleton-loader'
 import { toast } from '@/lib/toast'
+import { Pagination } from '@/components/ui/pagination'
 
 export function ManagerIssuesPage() {
   const router = useRouter()
   const [issues, setIssues] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
 
   useEffect(() => {
     fetchIssues()
+    setCurrentPage(1) // Reset to first page when filter changes
   }, [filterStatus])
 
   useEffect(() => {
@@ -151,82 +155,91 @@ export function ManagerIssuesPage() {
               <p className="text-gray-500">No issues found</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Maintenance Person</TableHead>
-                  <TableHead>Attachments</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {issues.map((issue) => (
-                  <TableRow key={issue.id}>
-                    <TableCell className="font-medium">
-                      {issue.Property?.nickname || issue.Property?.name || '-'}
-                    </TableCell>
-                    <TableCell>{issue.title}</TableCell>
-                    <TableCell>
-                      <Badge className={getPriorityColor(issue.priority)}>
-                        {issue.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={issue.status}
-                        onValueChange={(value) => handleStatusChange(issue.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="OPEN">Open</SelectItem>
-                          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                          <SelectItem value="RESOLVED">Resolved</SelectItem>
-                          <SelectItem value="CLOSED">Closed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {issue.AssignedContact ? (
-                        <div>
-                          <div className="font-medium text-sm">{issue.AssignedContact.name}</div>
-                          {issue.AssignedContact.company && (
-                            <div className="text-xs text-gray-500">{issue.AssignedContact.company}</div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">Unassigned</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {issue.IssueAttachment?.length > 0 ? (
-                        <span className="text-sm text-gray-600">
-                          {issue.IssueAttachment.length} file{issue.IssueAttachment.length > 1 ? 's' : ''}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">No attachments</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(issue.createdAt), 'MMM dd, yyyy')}
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/manager/issues/${issue.id}`}>
-                        <Button variant="outline" size="sm">
-                          View
-                        </Button>
-                      </Link>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Maintenance Person</TableHead>
+                    <TableHead>Attachments</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {issues.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((issue) => (
+                    <TableRow key={issue.id}>
+                      <TableCell className="font-medium">
+                        {issue.Property?.nickname || issue.Property?.name || '-'}
+                      </TableCell>
+                      <TableCell>{issue.title}</TableCell>
+                      <TableCell>
+                        <Badge className={getPriorityColor(issue.priority)}>
+                          {issue.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={issue.status}
+                          onValueChange={(value) => handleStatusChange(issue.id, value)}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="OPEN">Open</SelectItem>
+                            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                            <SelectItem value="RESOLVED">Resolved</SelectItem>
+                            <SelectItem value="CLOSED">Closed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {issue.AssignedContact ? (
+                          <div>
+                            <div className="font-medium text-sm">{issue.AssignedContact.name}</div>
+                            {issue.AssignedContact.company && (
+                              <div className="text-xs text-gray-500">{issue.AssignedContact.company}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Unassigned</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {issue.IssueAttachment?.length > 0 ? (
+                          <span className="text-sm text-gray-600">
+                            {issue.IssueAttachment.length} file{issue.IssueAttachment.length > 1 ? 's' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">No attachments</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(issue.createdAt), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/manager/issues/${issue.id}`}>
+                          <Button variant="outline" size="sm">
+                            View
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(issues.length / pageSize)}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                totalItems={issues.length}
+              />
+            </>
           )}
         </CardContent>
       </Card>

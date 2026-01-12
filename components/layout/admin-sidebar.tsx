@@ -79,6 +79,7 @@ const navGroups: NavGroup[] = [
   { href: '/admin/expenses', label: 'Expenses', icon: Receipt },
   { href: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
   { href: '/admin/issues', label: 'Issues', icon: AlertTriangle },
+      { href: '/admin/guest-contacts', label: 'Guest Contacts', icon: Users },
     ],
     defaultOpen: true,
   },

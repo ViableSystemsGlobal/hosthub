@@ -14,7 +14,7 @@ export async function POST(
     }
 
     // Only managers, operations, and admins can check in guests
-    if (!['MANAGER', 'OPERATIONS', 'ADMIN', 'SUPER_ADMIN', 'FINANCE'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'OPERATIONS', 'ADMIN', 'SUPER_ADMIN', 'FINANCE'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

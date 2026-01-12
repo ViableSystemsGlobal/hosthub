@@ -13,7 +13,7 @@ export async function POST(
     }
 
     // Only managers and admins can resolve alerts
-    if (!['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

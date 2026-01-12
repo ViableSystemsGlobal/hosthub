@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth-helpers'
+import { getCurrentUser, isManager } from '@/lib/auth-helpers'
 import { convertCurrency } from '@/lib/currency'
 import { startOfMonth, endOfMonth } from 'date-fns'
 
@@ -11,8 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Type assertion for MANAGER role (may not be in generated types yet)
-    if ((user.role as string) !== 'MANAGER') {
+    if (!isManager(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

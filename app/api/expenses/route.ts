@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'No owner linked' }, { status: 403 })
       }
       where.ownerId = user.ownerId
-    } else if (user.role === 'MANAGER') {
-      // Managers can only see expenses for their assigned properties
+    } else if (user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') {
+      // Managers and general managers can only see expenses for their assigned properties
       const assignedProperties = await prisma.property.findMany({
         where: { managerId: user.id },
         select: { id: true },
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only admins and managers can create expenses
-    if (user.role !== 'MANAGER' && !['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     
@@ -108,8 +108,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
-    // If manager, verify they manage this property
-    if (user.role === 'MANAGER' && property.managerId !== user.id) {
+    // If manager or general manager, verify they manage this property
+    if ((user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') && property.managerId !== user.id) {
       return NextResponse.json({ error: 'You can only create expenses for properties you manage' }, { status: 403 })
     }
 

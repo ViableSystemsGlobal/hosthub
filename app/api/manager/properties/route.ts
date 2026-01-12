@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth-helpers'
+import { getCurrentUser, isManager } from '@/lib/auth-helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (user.role !== 'MANAGER') {
+    if (!isManager(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -29,11 +29,16 @@ export function BookingForm({ bookingId, initialData }: BookingFormProps) {
   const isManager = pathname?.startsWith('/manager')
   const [loading, setLoading] = useState(false)
   const [properties, setProperties] = useState<any[]>([])
+  const [guestContacts, setGuestContacts] = useState<any[]>([])
+  const [showGuestSelector, setShowGuestSelector] = useState(false)
   const [formData, setFormData] = useState({
     propertyId: initialData?.propertyId || '',
     source: initialData?.source || BookingSource.DIRECT,
     externalReservationCode: initialData?.externalReservationCode || '',
     guestName: initialData?.guestName || '',
+    guestEmail: initialData?.guestEmail || '',
+    guestPhoneNumber: initialData?.guestPhoneNumber || '',
+    guestContactId: initialData?.guestContactId || '',
     checkInDate: initialData?.checkInDate
       ? new Date(initialData.checkInDate).toISOString().split('T')[0]
       : '',
@@ -56,6 +61,15 @@ export function BookingForm({ bookingId, initialData }: BookingFormProps) {
 
   useEffect(() => {
     fetchProperties()
+    if (!bookingId) {
+      fetchGuestContacts()
+      // Check for guestContactId in URL params
+      const urlParams = new URLSearchParams(window.location.search)
+      const guestContactIdParam = urlParams.get('guestContactId')
+      if (guestContactIdParam) {
+        handleGuestContactSelect(guestContactIdParam)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -90,6 +104,51 @@ export function BookingForm({ bookingId, initialData }: BookingFormProps) {
       setProperties(data)
     } catch (error) {
       console.error('Failed to fetch properties:', error)
+    }
+  }
+
+  const fetchGuestContacts = async () => {
+    try {
+      // Fetch all guest contacts (don't filter by status so we can see all guests)
+      const res = await fetch('/api/guest-contacts')
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: res.statusText }))
+        console.error('Failed to fetch guest contacts:', errorData.error || res.statusText)
+        setGuestContacts([])
+        return
+      }
+      const data = await res.json()
+      console.log('Fetched guest contacts:', data)
+      setGuestContacts(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Failed to fetch guest contacts:', error)
+      setGuestContacts([])
+    }
+  }
+
+  const handleGuestContactSelect = async (contactId: string) => {
+    // If contact is not in the list, fetch it
+    let contact = guestContacts.find(c => c.id === contactId)
+    if (!contact) {
+      try {
+        const res = await fetch(`/api/guest-contacts/${contactId}`)
+        if (res.ok) {
+          contact = await res.json()
+        }
+      } catch (error) {
+        console.error('Failed to fetch guest contact:', error)
+      }
+    }
+    
+    if (contact) {
+      setFormData({
+        ...formData,
+        guestContactId: contact.id,
+        guestName: contact.name,
+        guestEmail: contact.email || '',
+        guestPhoneNumber: contact.phoneNumber || '',
+      })
+      setShowGuestSelector(false)
     }
   }
 
@@ -224,15 +283,89 @@ export function BookingForm({ bookingId, initialData }: BookingFormProps) {
               </p>
             </div>
 
+            {!bookingId && (
+              <div className="space-y-2">
+                <Label>Select Existing Guest (Optional)</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.guestContactId}
+                    onValueChange={handleGuestContactSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select existing guest..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.isArray(guestContacts) && guestContacts.length > 0 ? (
+                        guestContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name}{contact.email ? ` (${contact.email})` : ''}{contact.phoneNumber ? ` - ${contact.phoneNumber}` : ''}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-contacts" disabled>
+                          {guestContacts === null || guestContacts === undefined 
+                            ? 'Loading guest contacts...' 
+                            : 'No guest contacts available'}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {formData.guestContactId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          guestContactId: '',
+                          guestName: '',
+                          guestEmail: '',
+                          guestPhoneNumber: '',
+                        })
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="guestName">Guest Name</Label>
+              <Label htmlFor="guestName">Guest Name *</Label>
               <Input
                 id="guestName"
                 value={formData.guestName}
                 onChange={(e) =>
                   setFormData({ ...formData, guestName: e.target.value })
                 }
+                required
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="guestEmail">Guest Email</Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={formData.guestEmail}
+                  onChange={(e) =>
+                    setFormData({ ...formData, guestEmail: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="guestPhoneNumber">Guest Phone Number</Label>
+                <Input
+                  id="guestPhoneNumber"
+                  type="tel"
+                  value={formData.guestPhoneNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, guestPhoneNumber: e.target.value })
+                  }
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

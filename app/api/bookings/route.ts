@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin, getCurrentUser } from '@/lib/auth-helpers'
 import { convertCurrency, getFxRate } from '@/lib/currency'
-import { BookingSource, BookingStatus, Currency, PaymentReceivedBy, TaskType, TaskStatus } from '@prisma/client'
+import { BookingSource, BookingStatus, Currency, PaymentReceivedBy, TaskType, TaskStatus, GuestContactType, GuestContactStatus } from '@prisma/client'
 import { differenceInDays } from 'date-fns'
 
 export async function GET(request: NextRequest) {
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'No owner linked' }, { status: 403 })
       }
       where.ownerId = user.ownerId
-    } else if (user.role === 'MANAGER') {
-      // Managers can only see bookings for their assigned properties
+    } else if (user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') {
+      // Managers and general managers can only see bookings for their assigned properties
       const assignedProperties = await prisma.property.findMany({
         where: { managerId: user.id },
         select: { id: true },
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only admins and managers can create bookings
-    if (user.role !== 'MANAGER' && !['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     
@@ -104,6 +104,9 @@ export async function POST(request: NextRequest) {
       source,
       externalReservationCode,
       guestName,
+      guestEmail,
+      guestPhoneNumber,
+      guestContactId,
       checkInDate,
       checkOutDate,
       baseAmount,
@@ -126,8 +129,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
-    // If manager, verify they manage this property
-    if (user.role === 'MANAGER' && property.managerId !== user.id) {
+    // If manager or general manager, verify they manage this property
+    if ((user.role === 'MANAGER' || user.role === 'GENERAL_MANAGER') && property.managerId !== user.id) {
       return NextResponse.json({ error: 'You can only create bookings for properties you manage' }, { status: 403 })
     }
 
@@ -140,6 +143,89 @@ export async function POST(request: NextRequest) {
     const fxRate = fxRateToBase || currentFxRate
     const totalPayoutInBase = await convertCurrency(totalPayout, currency as Currency)
 
+    // If guestContactId is provided, fetch guest contact details
+    let finalGuestName = guestName
+    let finalGuestEmail = guestEmail
+    let finalGuestPhoneNumber = guestPhoneNumber
+    let finalGuestContactId: string | null = null
+
+    if (guestContactId) {
+      try {
+        const guestContact = await prisma.guestContact.findUnique({
+          where: { id: guestContactId },
+        })
+        if (guestContact) {
+          finalGuestName = guestContact.name
+          finalGuestEmail = guestContact.email || guestEmail
+          finalGuestPhoneNumber = guestContact.phoneNumber || guestPhoneNumber
+          finalGuestContactId = guestContact.id
+        } else {
+          // Guest contact not found, but continue without linking
+          console.warn(`Guest contact ${guestContactId} not found, creating booking without link`)
+        }
+      } catch (error) {
+        // If there's an error fetching, continue without linking
+        console.error('Error fetching guest contact:', error)
+      }
+    }
+
+    // If no guestContactId but we have email or phone, try to find or create guest contact
+    if (!finalGuestContactId && (finalGuestEmail || finalGuestPhoneNumber) && finalGuestName) {
+      try {
+        // Try to find existing guest contact by email or phone
+        let existingContact = null
+        if (finalGuestEmail) {
+          existingContact = await prisma.guestContact.findFirst({
+            where: {
+              email: finalGuestEmail,
+            },
+          })
+        }
+        if (!existingContact && finalGuestPhoneNumber) {
+          existingContact = await prisma.guestContact.findFirst({
+            where: {
+              phoneNumber: finalGuestPhoneNumber,
+            },
+          })
+        }
+
+        if (existingContact) {
+          // Use existing contact
+          finalGuestContactId = existingContact.id
+          // Update existing contact with latest info if needed
+          await prisma.guestContact.update({
+            where: { id: existingContact.id },
+            data: {
+              name: finalGuestName,
+              email: finalGuestEmail || existingContact.email,
+              phoneNumber: finalGuestPhoneNumber || existingContact.phoneNumber,
+              updatedAt: new Date(),
+            },
+          })
+        } else {
+          // Create new guest contact
+          const newGuestContact = await prisma.guestContact.create({
+            data: {
+              id: crypto.randomUUID(),
+              name: finalGuestName,
+              email: finalGuestEmail || null,
+              phoneNumber: finalGuestPhoneNumber || null,
+              type: GuestContactType.GUEST,
+              status: GuestContactStatus.CONVERTED,
+              source: source as string,
+              propertyId: propertyId,
+              createdById: user.id,
+              updatedAt: new Date(),
+            },
+          })
+          finalGuestContactId = newGuestContact.id
+        }
+      } catch (error) {
+        // If there's an error creating/finding guest contact, continue without linking
+        console.error('Error creating/finding guest contact:', error)
+      }
+    }
+
     // Create booking
     const bookingId = crypto.randomUUID()
     const booking = await prisma.booking.create({
@@ -149,7 +235,10 @@ export async function POST(request: NextRequest) {
         ownerId: property.ownerId,
         source: source as BookingSource,
         externalReservationCode,
-        guestName,
+        guestName: finalGuestName,
+        guestEmail: finalGuestEmail,
+        guestPhoneNumber: finalGuestPhoneNumber,
+        guestContactId: finalGuestContactId || null,
         checkInDate: new Date(checkInDate),
         checkOutDate: new Date(checkOutDate),
         nights,
@@ -228,12 +317,17 @@ export async function POST(request: NextRequest) {
 
     // Send notification (non-blocking)
     try {
+      console.log('[Booking API] Sending booking notifications...')
       const { sendBookingNotification } = await import('@/lib/notifications/service')
-      sendBookingNotification(booking.id, 'created', property.ownerId).catch((err) => {
-        console.error('Failed to send booking creation notification:', err)
-      })
+      sendBookingNotification(booking.id, 'created', property.ownerId)
+        .then(() => {
+          console.log('[Booking API] ✅ Booking notifications sent successfully')
+        })
+        .catch((err) => {
+          console.error('[Booking API] ❌ Failed to send booking creation notification:', err)
+        })
     } catch (error) {
-      console.error('Notification error:', error)
+      console.error('[Booking API] ❌ Notification error:', error)
     }
 
     // Execute workflows (non-blocking)

@@ -33,17 +33,17 @@ export async function middleware(request: NextRequest) {
         UserRole.OPERATIONS,
       ]
       if (!adminRoles.includes(token.role as string)) {
-        // Redirect managers to manager dashboard, owners to owner dashboard
-        if ((token.role as string) === UserRole.MANAGER) {
+        // Redirect managers/general managers to manager dashboard, owners to owner dashboard
+        if ((token.role as string) === UserRole.MANAGER || (token.role as string) === UserRole.GENERAL_MANAGER) {
           return NextResponse.redirect(new URL('/manager/dashboard', request.url))
         }
         return NextResponse.redirect(new URL('/owner/dashboard', request.url))
       }
     }
 
-    // Manager routes - only accessible by managers
+    // Manager routes - accessible by managers and general managers
     if (path.startsWith('/manager')) {
-      if ((token.role as string) !== UserRole.MANAGER) {
+      if ((token.role as string) !== UserRole.MANAGER && (token.role as string) !== UserRole.GENERAL_MANAGER) {
         // Redirect to appropriate dashboard based on role
         const adminRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.OPERATIONS]
         if (adminRoles.includes(token.role as UserRole)) {
@@ -56,8 +56,8 @@ export async function middleware(request: NextRequest) {
     // Owner routes - only accessible by owners
     if (path.startsWith('/owner')) {
       if ((token.role as string) !== UserRole.OWNER) {
-        // Redirect managers to manager dashboard, admins to admin dashboard
-        if ((token.role as string) === UserRole.MANAGER) {
+        // Redirect managers/general managers to manager dashboard, admins to admin dashboard
+        if ((token.role as string) === UserRole.MANAGER || (token.role as string) === UserRole.GENERAL_MANAGER) {
           return NextResponse.redirect(new URL('/manager/dashboard', request.url))
         }
         return NextResponse.redirect(new URL('/admin/dashboard', request.url))

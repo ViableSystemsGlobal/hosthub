@@ -13,7 +13,7 @@ export async function PATCH(
     }
 
     // Only managers and admins can set thresholds
-    if (!['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

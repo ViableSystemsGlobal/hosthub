@@ -13,7 +13,7 @@ export async function PATCH(
     }
 
     // Only managers and admins can update checklists
-    if (!['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -106,7 +106,7 @@ export async function DELETE(
     }
 
     // Only managers and admins can delete checklists
-    if (!['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['MANAGER', 'GENERAL_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

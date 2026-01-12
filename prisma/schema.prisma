@@ -28,6 +28,9 @@ model Booking {
   source                  BookingSource
   externalReservationCode String?
   guestName               String?
+  guestEmail              String?
+  guestPhoneNumber        String?
+  guestContactId          String? // Link to GuestContact if created from a contact
   checkInDate             DateTime
   checkOutDate            DateTime
   nights                  Int
@@ -50,6 +53,7 @@ model Booking {
   Owner                   Owner             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   Property                Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   CheckedInBy             User?             @relation("CheckedInBookings", fields: [checkedInById], references: [id])
+  GuestContact            GuestContact?     @relation(fields: [guestContactId], references: [id], onDelete: SetNull)
   Task                    Task[]
   Document                Document[]
 
@@ -58,6 +62,8 @@ model Booking {
   @@index([propertyId])
   @@index([status])
   @@index([checkedInAt])
+  @@index([guestContactId])
+  @@index([guestEmail])
 }
 
 model Conversation {
@@ -184,8 +190,8 @@ model Owner {
   status            String             @default("active")
   notes             String?
   aiReportEnabled   Boolean            @default(false)
-  aiReportFrequency String?            // 'daily' | 'weekly' | 'none'
-  aiReportTime      String?            // Time in HH:mm format (e.g., "08:00")
+  aiReportFrequency String? // 'daily' | 'weekly' | 'none'
+  aiReportTime      String? // Time in HH:mm format (e.g., "08:00")
   aiReportLastSent  DateTime?
   aiReportNextSend  DateTime?
   createdAt         DateTime           @default(now())
@@ -251,44 +257,45 @@ model Payout {
 }
 
 model Property {
-  id                              String          @id
-  ownerId                         String
-  name                            String
-  nickname                        String?
-  address                         String?
-  city                            String?
-  country                         String?
-  currency                        Currency        @default(GHS)
-  airbnbListingId                 String?
-  airbnbUrl                       String?
-  bookingComId                    String?
-  instagramHandle                 String?
-  defaultCommissionRate           Float           @default(0.15)
-  cleaningFeeRules                String?
-  status                          String          @default("active")
-  photos                          String[]
-  bedrooms                        Int?
-  bathrooms                       Float?
-  maxGuests                       Int?
-  amenities                       String?
-  description                     String?
-  electricityMeterMinimumBalance  Float?
-  electricityMeterUnit            String?         @default("GHS")
-  createdAt                       DateTime        @default(now())
-  updatedAt                       DateTime
-  managerId                       String?
-  Booking                         Booking[]
-  Expense                         Expense[]
-  User                            User?           @relation(fields: [managerId], references: [id])
-  Owner                           Owner           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  Task                            Task[]
-  Issue                           Issue[]
-  Document                        Document[]
-  recurringTasks                  RecurringTask[]
-  CleaningChecklist               CleaningChecklist[]
-  ElectricityMeterReading         ElectricityMeterReading[]
-  ElectricityAlert                ElectricityAlert[]
-  Inventory                        InventoryItem[]
+  id                             String                    @id
+  ownerId                        String
+  name                           String
+  nickname                       String?
+  address                        String?
+  city                           String?
+  country                        String?
+  currency                       Currency                  @default(GHS)
+  airbnbListingId                String?
+  airbnbUrl                      String?
+  bookingComId                   String?
+  instagramHandle                String?
+  defaultCommissionRate          Float                     @default(0.15)
+  cleaningFeeRules               String?
+  status                         String                    @default("active")
+  photos                         String[]
+  bedrooms                       Int?
+  bathrooms                      Float?
+  maxGuests                      Int?
+  amenities                      String?
+  description                    String?
+  electricityMeterMinimumBalance Float?
+  electricityMeterUnit           String?                   @default("GHS")
+  createdAt                      DateTime                  @default(now())
+  updatedAt                      DateTime
+  managerId                      String?
+  Booking                        Booking[]
+  Expense                        Expense[]
+  User                           User?                     @relation(fields: [managerId], references: [id])
+  Owner                          Owner                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Task                           Task[]
+  Issue                          Issue[]
+  Document                       Document[]
+  recurringTasks                 RecurringTask[]
+  CleaningChecklist              CleaningChecklist[]
+  ElectricityMeterReading        ElectricityMeterReading[]
+  ElectricityAlert               ElectricityAlert[]
+  Inventory                      InventoryItem[]
+  GuestContacts                  GuestContact[]
 
   @@index([managerId])
   @@index([ownerId])
@@ -399,31 +406,31 @@ model IssueComment {
 }
 
 model Task {
-  id                  String         @id
-  propertyId          String
-  bookingId           String?
-  recurringTaskId     String?
-  type                TaskType
-  title               String
-  description         String?
-  assignedToUserId    String?
-  scheduledAt         DateTime?
-  dueAt               DateTime?
-  status              TaskStatus     @default(PENDING)
-  costEstimate        Float?
-  costActual          Float?
-  createdById         String?
-  completedAt         DateTime?
+  id                   String           @id
+  propertyId           String
+  bookingId            String?
+  recurringTaskId      String?
+  type                 TaskType
+  title                String
+  description          String?
+  assignedToUserId     String?
+  scheduledAt          DateTime?
+  dueAt                DateTime?
+  status               TaskStatus       @default(PENDING)
+  costEstimate         Float?
+  costActual           Float?
+  createdById          String?
+  completedAt          DateTime?
   checklistCompletedAt DateTime?
-  isReadyForGuest     Boolean        @default(false)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime
-  Expense             Expense[]
-  Booking             Booking?       @relation(fields: [bookingId], references: [id])
-  Property            Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  RecurringTask       RecurringTask? @relation("RecurringTask", fields: [recurringTaskId], references: [id], onDelete: SetNull)
-  TaskChecklist       TaskChecklist?
-  TaskAttachment      TaskAttachment[]
+  isReadyForGuest      Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime
+  Expense              Expense[]
+  Booking              Booking?         @relation(fields: [bookingId], references: [id])
+  Property             Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  RecurringTask        RecurringTask?   @relation("RecurringTask", fields: [recurringTaskId], references: [id], onDelete: SetNull)
+  TaskChecklist        TaskChecklist?
+  TaskAttachment       TaskAttachment[]
 
   @@index([dueAt])
   @@index([propertyId])
@@ -463,35 +470,36 @@ model Document {
 }
 
 model User {
-  id                   String          @id
-  email                String          @unique
-  password             String
-  role                 UserRole        @default(OWNER)
-  ownerId              String?         @unique
-  name                 String?
-  phoneNumber          String?
-  image                String?
-  otpEnabled           Boolean         @default(false)
-  otpCode              String?
-  otpExpiresAt         DateTime?
-  otpMethod            String?         // "EMAIL" or "SMS"
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime
-  Property             Property[]
-  Owner                Owner?          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  IssueComment         IssueComment[]
-  UploadedDocuments    Document[]
-  EmailTemplates       EmailTemplate[]
-  SMSTemplates         SMSTemplate[]
-  CreatedWorkflowRules WorkflowRule[]  @relation("CreatedWorkflowRules")
-  recurringTasks       RecurringTask[]
-  CreatedReports       Report[]        @relation("CreatedReports")
-  CheckedInBookings    Booking[]       @relation("CheckedInBookings")
-  CreatedCleaningChecklists CleaningChecklist[] @relation("CreatedCleaningChecklists")
-  ElectricityReadings  ElectricityMeterReading[]
-  TaskAttachments      TaskAttachment[]
-  LastCheckedInventory InventoryItem[]
-  InventoryHistory      InventoryHistory[]
+  id                        String                    @id
+  email                     String                    @unique
+  password                  String
+  role                      UserRole                  @default(OWNER)
+  ownerId                   String?                   @unique
+  name                      String?
+  phoneNumber               String?
+  image                     String?
+  otpEnabled                Boolean                   @default(false)
+  otpCode                   String?
+  otpExpiresAt              DateTime?
+  otpMethod                 String? // "EMAIL" or "SMS"
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime
+  Property                  Property[]
+  Owner                     Owner?                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  IssueComment              IssueComment[]
+  UploadedDocuments         Document[]
+  EmailTemplates            EmailTemplate[]
+  SMSTemplates              SMSTemplate[]
+  CreatedWorkflowRules      WorkflowRule[]            @relation("CreatedWorkflowRules")
+  recurringTasks            RecurringTask[]
+  CreatedReports            Report[]                  @relation("CreatedReports")
+  CheckedInBookings         Booking[]                 @relation("CheckedInBookings")
+  CreatedCleaningChecklists CleaningChecklist[]       @relation("CreatedCleaningChecklists")
+  CreatedGuestContacts      GuestContact[]            @relation("CreatedGuestContacts")
+  ElectricityReadings       ElectricityMeterReading[]
+  TaskAttachments           TaskAttachment[]
+  LastCheckedInventory      InventoryItem[]
+  InventoryHistory          InventoryHistory[]
 
   @@index([email])
   @@index([role])
@@ -638,6 +646,49 @@ model Contact {
   @@index([type])
 }
 
+enum GuestContactType {
+  LEAD
+  INQUIRY
+  GUEST
+}
+
+enum GuestContactStatus {
+  NEW
+  CONTACTED
+  FOLLOW_UP
+  CONVERTED
+  LOST
+}
+
+model GuestContact {
+  id                   String             @id @default(cuid())
+  name                 String
+  email                String?
+  phoneNumber          String?
+  type                 GuestContactType   @default(LEAD)
+  status               GuestContactStatus @default(NEW)
+  source               String? // Where they came from (AIRBNB, BOOKING_COM, INSTAGRAM, DIRECT, etc.)
+  propertyId           String? // If inquiry is for specific property
+  notes                String?            @db.Text
+  lastContactedAt      DateTime?
+  followUpDate         DateTime?
+  convertedToBookingId String? // If converted to booking
+  createdById          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  Property             Property?          @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  CreatedBy            User?              @relation("CreatedGuestContacts", fields: [createdById], references: [id], onDelete: SetNull)
+  Booking              Booking[]
+
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([type])
+  @@index([status])
+  @@index([propertyId])
+  @@index([followUpDate])
+  @@index([createdById])
+}
+
 enum UserRole {
   SUPER_ADMIN
   ADMIN
@@ -645,6 +696,7 @@ enum UserRole {
   OPERATIONS
   OWNER
   MANAGER
+  GENERAL_MANAGER
 }
 
 model Setting {
@@ -861,17 +913,17 @@ model Report {
 
 // Cleaning Checklist Models
 model CleaningChecklist {
-  id          String   @id @default(cuid())
-  propertyId  String?  // null for global templates
-  name        String
-  items       Json     // Array of {id, text, required}
-  isDefault   Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  Property    Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  CreatedBy   User?    @relation("CreatedCleaningChecklists", fields: [createdById], references: [id], onDelete: SetNull)
+  id             String          @id @default(cuid())
+  propertyId     String? // null for global templates
+  name           String
+  items          Json // Array of {id, text, required}
+  isDefault      Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  createdById    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  Property       Property?       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  CreatedBy      User?           @relation("CreatedCleaningChecklists", fields: [createdById], references: [id], onDelete: SetNull)
   TaskChecklists TaskChecklist[]
 
   @@index([propertyId])
@@ -880,32 +932,32 @@ model CleaningChecklist {
 }
 
 model TaskChecklist {
-  id           String   @id @default(cuid())
-  taskId       String   @unique
-  checklistId  String
-  items        Json     // Array of {id, text, completed, completedAt, completedById}
-  completedAt  DateTime?
+  id            String            @id @default(cuid())
+  taskId        String            @unique
+  checklistId   String
+  items         Json // Array of {id, text, completed, completedAt, completedById}
+  completedAt   DateTime?
   completedById String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  Task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  Checklist    CleaningChecklist @relation(fields: [checklistId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  Task          Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  Checklist     CleaningChecklist @relation(fields: [checklistId], references: [id])
 
   @@index([taskId])
   @@index([checklistId])
 }
 
 model TaskAttachment {
-  id          String   @id @default(cuid())
-  taskId      String
-  fileUrl     String
-  fileName    String
-  fileType    String   // 'image' or 'video'
-  fileSize    Int?     // in bytes
+  id           String   @id @default(cuid())
+  taskId       String
+  fileUrl      String
+  fileName     String
+  fileType     String // 'image' or 'video'
+  fileSize     Int? // in bytes
   uploadedById String?
-  createdAt   DateTime @default(now())
-  Task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  UploadedBy  User?    @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+  Task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  UploadedBy   User?    @relation(fields: [uploadedById], references: [id])
 
   @@index([taskId])
   @@index([createdAt])
@@ -913,16 +965,16 @@ model TaskAttachment {
 
 // Electricity Meter Models
 model ElectricityMeterReading {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   propertyId  String
-  balance     Float    // remaining amount
-  readingDate DateTime @default(now())
+  balance     Float // remaining amount
+  readingDate DateTime           @default(now())
   enteredById String?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  Property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  EnteredBy   User?    @relation(fields: [enteredById], references: [id])
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  Property    Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  EnteredBy   User?              @relation(fields: [enteredById], references: [id])
   Alerts      ElectricityAlert[]
 
   @@index([propertyId])
@@ -930,16 +982,16 @@ model ElectricityMeterReading {
 }
 
 model ElectricityAlert {
-  id              String   @id @default(cuid())
+  id              String                  @id @default(cuid())
   propertyId      String
   readingId       String
   thresholdAmount Float
   currentBalance  Float
-  alertSentAt     DateTime @default(now())
+  alertSentAt     DateTime                @default(now())
   alertSentTo     String[] // array of user IDs
   resolvedAt      DateTime?
-  createdAt       DateTime @default(now())
-  Property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                @default(now())
+  Property        Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   Reading         ElectricityMeterReading @relation(fields: [readingId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
@@ -960,50 +1012,50 @@ enum InventoryStatus {
 }
 
 model InventoryItem {
-  id              String          @id @default(cuid())
-  propertyId      String
-  name            String
-  type            InventoryType
-  description     String?
-  
+  id          String        @id @default(cuid())
+  propertyId  String
+  name        String
+  type        InventoryType
+  description String?
+
   // For consumable items
-  quantity        Float?          // Current quantity
-  minimumQuantity Float?          // Alert threshold
-  unit            String?         // e.g., "pieces", "bottles", "rolls"
-  
+  quantity        Float? // Current quantity
+  minimumQuantity Float? // Alert threshold
+  unit            String? // e.g., "pieces", "bottles", "rolls"
+
   // For stationary items
-  status          InventoryStatus @default(PRESENT)
-  photos          String[]        // Array of photo URLs for stationary items
-  
+  status InventoryStatus @default(PRESENT)
+  photos String[] // Array of photo URLs for stationary items
+
   // Common fields
   notes           String?
   lastCheckedAt   DateTime?
   lastCheckedById String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  Property        Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  LastCheckedBy   User?           @relation(fields: [lastCheckedById], references: [id], onDelete: SetNull)
-  History         InventoryHistory[]
-  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  Property      Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  LastCheckedBy User?              @relation(fields: [lastCheckedById], references: [id], onDelete: SetNull)
+  History       InventoryHistory[]
+
   @@index([propertyId])
   @@index([type])
   @@index([status])
 }
 
 model InventoryHistory {
-  id              String        @id @default(cuid())
-  inventoryItemId String
+  id               String   @id @default(cuid())
+  inventoryItemId  String
   previousQuantity Float?
-  newQuantity     Float?
-  changeType      String        // 'adjustment', 'restocked', 'consumed'
-  notes           String?
-  changedById     String?
-  createdAt       DateTime      @default(now())
-  
-  InventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  ChangedBy       User?         @relation(fields: [changedById], references: [id], onDelete: SetNull)
-  
+  newQuantity      Float?
+  changeType       String // 'adjustment', 'restocked', 'consumed'
+  notes            String?
+  changedById      String?
+  createdAt        DateTime @default(now())
+
+  InventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  ChangedBy     User?         @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
   @@index([inventoryItemId])
   @@index([createdAt])
 }
