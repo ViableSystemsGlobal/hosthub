@@ -60,8 +60,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 
 # Copy startup script
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.sh ./scripts/start.sh
-RUN chmod +x ./scripts/start.sh
+RUN mkdir -p /app/scripts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.sh /app/scripts/start.sh
+RUN chmod +x /app/scripts/start.sh
 
 USER nextjs
 
@@ -70,5 +71,5 @@ EXPOSE 10000
 ENV PORT=10000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["./scripts/start.sh"]
+CMD ["/app/scripts/start.sh"]
 
