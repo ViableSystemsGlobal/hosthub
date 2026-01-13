@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "PORT=3300 next dev",
     "build": "prisma generate && next build",
-    "start": "PORT=3300 node .next/standalone/server.js",
-    "start:standalone": "PORT=3300 node .next/standalone/server.js",
+    "start": "PORT=10000 node .next/standalone/server.js",
+    "start:standalone": "PORT=10000 node .next/standalone/server.js",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",

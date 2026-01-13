@@ -55,11 +55,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
+# Copy Prisma schema and migrations for runtime migrations
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+
 USER nextjs
 
-EXPOSE 3300
+EXPOSE 10000
 
-ENV PORT=3300
+ENV PORT=10000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
