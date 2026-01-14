@@ -6,7 +6,8 @@ echo "Starting application..."
 # Run migrations if DATABASE_URL is set
 if [ -n "$DATABASE_URL" ]; then
   echo "Running database migrations..."
-  npx prisma migrate deploy || echo "Migrations failed or already applied"
+  # Try npx first, fallback to direct path
+  npx prisma migrate deploy 2>/dev/null || ./node_modules/.bin/prisma migrate deploy || echo "Migrations failed or already applied"
 else
   echo "WARNING: DATABASE_URL not set, skipping migrations"
 fi
