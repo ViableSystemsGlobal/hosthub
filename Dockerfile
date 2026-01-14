@@ -31,6 +31,9 @@ RUN npm run build
 # Verify build output exists
 RUN ls -la .next/standalone/ && ls -la .next/static/ && ls -la public/
 
+# Verify scripts directory exists
+RUN ls -la scripts/ && test -f scripts/start.sh && echo "start.sh found"
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
@@ -59,10 +62,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modul
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 
-# Copy startup script
+# Copy startup script (copy from source, not from standalone build)
+# Ensure scripts directory exists first
 RUN mkdir -p /app/scripts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/start.sh /app/scripts/start.sh
-RUN chmod +x /app/scripts/start.sh
+
+# Verify script exists and make it executable
+RUN test -f /app/scripts/start.sh && chmod +x /app/scripts/start.sh && echo "start.sh copied and made executable" || (echo "ERROR: start.sh not found!" && exit 1)
 
 USER nextjs
 
@@ -71,5 +77,6 @@ EXPOSE 10000
 ENV PORT=10000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["/app/scripts/start.sh"]
+# Use sh to execute the script for better compatibility
+CMD ["sh", "/app/scripts/start.sh"]
 
