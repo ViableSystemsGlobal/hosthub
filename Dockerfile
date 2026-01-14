@@ -59,13 +59,19 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
-# Copy Prisma schema and migrations for runtime migrations
+# Copy Prisma schema, migrations, and seed scripts for runtime migrations
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 
-# Copy Prisma CLI binary (needed for npx prisma commands)
+# Copy Prisma CLI binary and all its dependencies (including WASM files)
+# Copy the entire prisma package (contains WASM files and all dependencies)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+# Copy the binary
 RUN mkdir -p /app/node_modules/.bin
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Copy WASM files from prisma package to .bin directory (where the binary expects them)
+RUN if [ -f "/app/node_modules/prisma/prisma_schema_build_bg.wasm" ]; then \
+      cp /app/node_modules/prisma/prisma_schema_build_bg.wasm /app/node_modules/.bin/; \
+    fi
 
 # Copy dependencies needed for seed script
 # Copy pg and its dependencies
