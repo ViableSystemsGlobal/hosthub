@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         }),
         documents: await prisma.document.findMany(),
         contacts: await prisma.contact.findMany(),
+        guestContacts: await prisma.guestContact.findMany(),
         payouts: await prisma.payout.findMany(),
         ownerTransactions: await prisma.ownerTransaction.findMany(),
         recurringTasks: await prisma.recurringTask.findMany(),

@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
         await tx.notification.deleteMany({})
         await tx.aiInsightCache.deleteMany({})
         await tx.contact.deleteMany({})
+        await tx.guestContact.deleteMany({})
         
         // Level 2
         await tx.property.deleteMany({})
@@ -181,7 +182,39 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Step 5: Bookings (depends on Property, Owner)
+      // Step 4.5: GuestContacts (depends on Property, User) - MUST be before Bookings
+      if (data.guestContacts) {
+        for (const guestContact of data.guestContacts) {
+          const gcData = { ...guestContact }
+          // Check if propertyId exists
+          if (gcData.propertyId) {
+            const propertyExists = await tx.property.findUnique({
+              where: { id: gcData.propertyId },
+              select: { id: true },
+            })
+            if (!propertyExists) {
+              gcData.propertyId = null
+            }
+          }
+          // Check if createdById exists
+          if (gcData.createdById) {
+            const userExists = await tx.user.findUnique({
+              where: { id: gcData.createdById },
+              select: { id: true },
+            })
+            if (!userExists) {
+              gcData.createdById = null
+            }
+          }
+          await tx.guestContact.upsert({
+            where: { id: gcData.id },
+            update: gcData,
+            create: gcData,
+          })
+        }
+      }
+
+      // Step 5: Bookings (depends on Property, Owner, GuestContact)
       if (data.bookings) {
         for (const booking of data.bookings) {
           const bookingData = { ...booking }
@@ -193,6 +226,16 @@ export async function POST(request: NextRequest) {
             })
             if (!userExists) {
               bookingData.checkedInById = null
+            }
+          }
+          // Check if guestContactId exists
+          if (bookingData.guestContactId) {
+            const guestContactExists = await tx.guestContact.findUnique({
+              where: { id: bookingData.guestContactId },
+              select: { id: true },
+            })
+            if (!guestContactExists) {
+              bookingData.guestContactId = null
             }
           }
           await tx.booking.upsert({
