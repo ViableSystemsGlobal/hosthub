@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/prisma'
+import { writeFile, mkdir } from 'fs/promises'
+import { join, dirname } from 'path'
+
+interface BackupFile {
+  path: string
+  name: string
+  data: string // Base64 encoded
+  mimeType: string
+}
 
 /**
- * POST - Restore database from backup
+ * POST - Restore database and files from backup
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,8 +36,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate backup version
-    if (backup.version !== '1.0') {
+    // Validate backup version (support both 1.0 and 1.1)
+    if (!['1.0', '1.1'].includes(backup.version)) {
       return NextResponse.json(
         { error: 'Unsupported backup version' },
         { status: 400 }
@@ -770,9 +779,42 @@ export async function POST(request: NextRequest) {
       timeout: 120000, // 2 minute timeout for large restores
     })
 
+    // Restore files (outside transaction since it's filesystem operations)
+    let filesRestored = 0
+    let filesSkipped = 0
+    
+    if (backup.files && Array.isArray(backup.files)) {
+      const publicDir = join(process.cwd(), 'public')
+      
+      for (const file of backup.files as BackupFile[]) {
+        try {
+          // Construct full path
+          const fullPath = join(publicDir, file.path)
+          
+          // Create directory if it doesn't exist
+          const dirPath = dirname(fullPath)
+          await mkdir(dirPath, { recursive: true })
+          
+          // Decode base64 and write file
+          const buffer = Buffer.from(file.data, 'base64')
+          await writeFile(fullPath, buffer)
+          
+          filesRestored++
+        } catch (fileError) {
+          console.error(`Failed to restore file ${file.path}:`, fileError)
+          filesSkipped++
+          // Continue with other files
+        }
+      }
+      
+      console.log(`Files restored: ${filesRestored}, skipped: ${filesSkipped}`)
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Backup restored successfully',
+      message: `Backup restored successfully. ${filesRestored > 0 ? `${filesRestored} files restored.` : ''} ${filesSkipped > 0 ? `${filesSkipped} files skipped.` : ''}`.trim(),
+      filesRestored,
+      filesSkipped,
     })
   } catch (error: unknown) {
     const err = error as { message?: string }

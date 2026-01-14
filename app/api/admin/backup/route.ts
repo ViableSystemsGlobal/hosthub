@@ -1,25 +1,100 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/prisma'
+import { readdir, readFile, stat } from 'fs/promises'
+import { join } from 'path'
+
+interface BackupFile {
+  path: string // Relative path like "uploads/receipts/123.png"
+  name: string
+  data: string // Base64 encoded file content
+  mimeType: string
+}
+
+// Get mime type from file extension
+function getMimeType(filename: string): string {
+  const ext = filename.toLowerCase().split('.').pop()
+  const mimeTypes: Record<string, string> = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    'pdf': 'application/pdf',
+    'mp4': 'video/mp4',
+    'mov': 'video/quicktime',
+    'avi': 'video/x-msvideo',
+  }
+  return mimeTypes[ext || ''] || 'application/octet-stream'
+}
+
+// Recursively scan directory for files
+async function scanDirectory(dirPath: string, basePath: string): Promise<BackupFile[]> {
+  const files: BackupFile[] = []
+  
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true })
+    
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name)
+      const relativePath = join(basePath, entry.name)
+      
+      if (entry.isDirectory()) {
+        // Recursively scan subdirectories
+        const subFiles = await scanDirectory(fullPath, relativePath)
+        files.push(...subFiles)
+      } else if (entry.isFile()) {
+        try {
+          const fileContent = await readFile(fullPath)
+          const base64Data = fileContent.toString('base64')
+          
+          files.push({
+            path: relativePath,
+            name: entry.name,
+            data: base64Data,
+            mimeType: getMimeType(entry.name),
+          })
+        } catch (fileError) {
+          console.error(`Failed to read file ${fullPath}:`, fileError)
+          // Continue with other files
+        }
+      }
+    }
+  } catch (error) {
+    // Directory doesn't exist or can't be read
+    console.log(`Directory ${dirPath} not accessible:`, error)
+  }
+  
+  return files
+}
 
 /**
- * GET - Create a backup of all database data
+ * GET - Create a backup of all database data and files
  */
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; status?: number }
     return NextResponse.json(
-      { error: error.message || 'Unauthorized' },
-      { status: error.status || 401 }
+      { error: err.message || 'Unauthorized' },
+      { status: err.status || 401 }
     )
   }
 
   try {
+    // Scan uploads directory for files
+    const uploadsDir = join(process.cwd(), 'public', 'uploads')
+    const uploadedFiles = await scanDirectory(uploadsDir, 'uploads')
+    
+    console.log(`Found ${uploadedFiles.length} files to backup`)
+
     // Fetch all data from all tables
     const backup = {
-      version: '1.0',
+      version: '1.1', // Updated version to indicate files support
       createdAt: new Date().toISOString(),
+      includesFiles: true,
       data: {
         // Core entities
         // Users must be backed up separately to include non-owner users (e.g., managers)
@@ -97,6 +172,8 @@ export async function GET(request: NextRequest) {
           },
         }),
       },
+      // Include uploaded files (images, receipts, logos, etc.)
+      files: uploadedFiles,
     }
 
     // Return as JSON download
@@ -106,10 +183,11 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': `attachment; filename="hosthub-backup-${new Date().toISOString().split('T')[0]}.json"`,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error('Backup error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create backup' },
+      { error: err.message || 'Failed to create backup' },
       { status: 500 }
     )
   }
