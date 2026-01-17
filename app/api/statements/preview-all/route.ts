@@ -70,12 +70,9 @@ export async function POST(request: NextRequest) {
       const ownerBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'OWNER')
 
       for (const booking of bookings) {
-        const baseAmount = booking.baseAmount || 0
-        const cleaningFee = booking.cleaningFee || 0
-        const grossBookingAmount = baseAmount + cleaningFee
-        
+        // Use totalPayout (net after platform fees) to match Revenue report
         const amountInDisplay = await convertCurrency(
-          grossBookingAmount,
+          booking.totalPayout,
           booking.currency,
           currency
         )
@@ -84,9 +81,8 @@ export async function POST(request: NextRequest) {
 
       // Calculate company and owner revenue separately
       for (const booking of companyBookings) {
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
         const amountInDisplay = await convertCurrency(
-          grossBookingAmount,
+          booking.totalPayout,
           booking.currency,
           currency
         )
@@ -94,9 +90,8 @@ export async function POST(request: NextRequest) {
       }
 
       for (const booking of ownerBookings) {
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
         const amountInDisplay = await convertCurrency(
-          grossBookingAmount,
+          booking.totalPayout,
           booking.currency,
           currency
         )
@@ -123,7 +118,7 @@ export async function POST(request: NextRequest) {
       
       const totalExpenses = companyPaidExpenses + ownerPaidExpenses
 
-      // Calculate commission
+      // Calculate commission (on totalPayout to match Revenue report)
       let commissionAmount = 0
       let companyCommission = 0
       let ownerCommission = 0
@@ -131,13 +126,12 @@ export async function POST(request: NextRequest) {
       for (const booking of bookings) {
         const property = booking.Property
         const commissionRate = property.defaultCommissionRate || 0.15
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
-        const grossBookingInDisplay = await convertCurrency(
-          grossBookingAmount,
+        const bookingInDisplay = await convertCurrency(
+          booking.totalPayout,
           booking.currency,
           currency
         )
-        const commission = grossBookingInDisplay * commissionRate
+        const commission = bookingInDisplay * commissionRate
         commissionAmount += commission
 
         if ((booking as any).paymentReceivedBy === 'COMPANY') {
@@ -160,11 +154,10 @@ export async function POST(request: NextRequest) {
       // Build statement lines
       const statementLines: any[] = []
 
-      // Add booking lines
+      // Add booking lines (using totalPayout to match Revenue report)
       for (const booking of bookings) {
-        const grossBookingAmount = booking.baseAmount + booking.cleaningFee
         const amountInDisplay = await convertCurrency(
-          grossBookingAmount,
+          booking.totalPayout,
           booking.currency,
           currency
         )
