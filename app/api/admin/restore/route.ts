@@ -130,10 +130,46 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
     console.log('Extracting archive with command:', extractCmd)
     await execAsync(extractCmd)
 
+    // List contents of temp directory for debugging
+    try {
+      const listResult = await execAsync(`find "${tempDir}" -type f | head -20`)
+      console.log('Files in extracted archive:', listResult.stdout)
+    } catch (e) {
+      console.log('Could not list extracted files')
+    }
+
     // Check for database.sql (pg_dump format) or database.json
-    const sqlDump = join(tempDir, 'database.sql')
-    const jsonDump = join(tempDir, 'database.json')
-    const uploadsDir = join(tempDir, 'uploads')
+    // Also check in subdirectories in case archive has nested structure
+    let sqlDump = join(tempDir, 'database.sql')
+    let jsonDump = join(tempDir, 'database.json')
+    let uploadsDir = join(tempDir, 'uploads')
+    
+    // If not found at root, search for them
+    if (!fs.existsSync(sqlDump) && !fs.existsSync(jsonDump)) {
+      console.log('Database files not at root, searching...')
+      try {
+        const findSql = await execAsync(`find "${tempDir}" -name "database.sql" -type f | head -1`)
+        const findJson = await execAsync(`find "${tempDir}" -name "database.json" -type f | head -1`)
+        
+        if (findSql.stdout.trim()) {
+          sqlDump = findSql.stdout.trim()
+          console.log('Found database.sql at:', sqlDump)
+        }
+        if (findJson.stdout.trim()) {
+          jsonDump = findJson.stdout.trim()
+          console.log('Found database.json at:', jsonDump)
+        }
+        
+        // Also find uploads directory
+        const findUploads = await execAsync(`find "${tempDir}" -name "uploads" -type d | head -1`)
+        if (findUploads.stdout.trim()) {
+          uploadsDir = findUploads.stdout.trim()
+          console.log('Found uploads at:', uploadsDir)
+        }
+      } catch (e) {
+        console.error('Error searching for database files:', e)
+      }
+    }
 
     // Restore database
     if (fs.existsSync(sqlDump)) {
