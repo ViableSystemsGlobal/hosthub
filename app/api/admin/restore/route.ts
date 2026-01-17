@@ -34,14 +34,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const contentType = request.headers.get('content-type') || ''
+    console.log('Restore request Content-Type:', contentType)
     
     // Check if it's a file upload (archive)
-    if (contentType.includes('multipart/form-data') || contentType.includes('application/octet-stream')) {
+    // FormData requests will have multipart/form-data in Content-Type (case-insensitive)
+    if (contentType.toLowerCase().includes('multipart/form-data')) {
+      console.log('Detected FormData, restoring from archive')
       return await restoreFromArchive(request)
-    } else {
-      // JSON format (backward compatibility)
+    }
+    
+    // If Content-Type is application/json, it's definitely JSON
+    if (contentType.includes('application/json')) {
+      console.log('Detected JSON, restoring from JSON')
       return await restoreFromJSON(request)
     }
+    
+    // If Content-Type is missing or unknown, return an error
+    // This prevents accidentally consuming the request body
+    return NextResponse.json(
+      { error: `Invalid Content-Type: ${contentType || 'missing'}. Expected multipart/form-data for archive files or application/json for JSON files.` },
+      { status: 400 }
+    )
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error('Restore error:', error)
@@ -55,8 +68,8 @@ export async function POST(request: NextRequest) {
 /**
  * Restore from archive file (tar.gz or zip)
  */
-async function restoreFromArchive(request: NextRequest) {
-  const formData = await request.formData()
+async function restoreFromArchive(request: NextRequest, providedFormData?: FormData) {
+  const formData = providedFormData || await request.formData()
   const file = formData.get('file') as File | null
   const clearExistingParam = formData.get('clearExisting')
   const clearExisting = clearExistingParam === 'true' || clearExistingParam === true
