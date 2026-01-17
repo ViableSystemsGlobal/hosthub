@@ -78,7 +78,7 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
   const formData = providedFormData || await request.formData()
   const file = formData.get('file') as File | null
   const clearExistingParam = formData.get('clearExisting')
-  const clearExisting = clearExistingParam === 'true' || clearExistingParam === true
+  const clearExisting = clearExistingParam === 'true'
   
   // Track restore results for verification
   let bookingsBefore = 0
