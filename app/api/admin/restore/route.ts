@@ -73,6 +73,12 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
   const file = formData.get('file') as File | null
   const clearExistingParam = formData.get('clearExisting')
   const clearExisting = clearExistingParam === 'true' || clearExistingParam === true
+  
+  // Track restore results for verification
+  let bookingsBefore = 0
+  let bookingsAfter: number | undefined
+  let propertiesAfter: number | undefined
+  let ownersAfter: number | undefined
 
   if (!file) {
     console.error('Restore error: No file found in FormData')
@@ -126,6 +132,15 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
     // Restore database
     if (fs.existsSync(sqlDump)) {
       console.log('Found database.sql dump, restoring...')
+      
+      // Check data before restore
+      try {
+        bookingsBefore = await prisma.booking.count()
+        console.log(`Bookings before restore: ${bookingsBefore}`)
+      } catch (e) {
+        console.warn('Could not check bookings before restore:', e)
+      }
+      
       // Restore from SQL dump
       const dbUrl = process.env.DATABASE_URL
       if (!dbUrl) {
@@ -147,18 +162,24 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       if (isCustomFormat) {
         // Custom format dump - use pg_restore
         console.log('Detected custom format dump, using pg_restore')
-        const restoreCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists --no-owner --no-acl "${sqlDump}"`
+        // Use --clean to drop objects, --if-exists to avoid errors, --no-owner --no-acl for compatibility
+        // Use --verbose to see what's happening
+        const restoreCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists --no-owner --no-acl --verbose "${sqlDump}" 2>&1`
         
         try {
           console.log('Running pg_restore...')
           const result = await execAsync(restoreCmd)
-          console.log('pg_restore output:', result.stdout)
-          if (result.stderr) {
-            console.warn('pg_restore warnings:', result.stderr)
+          console.log('pg_restore stdout:', result.stdout)
+          // Check if restore actually worked by looking for errors in output
+          if (result.stdout.includes('ERROR') || result.stdout.includes('FATAL')) {
+            console.error('pg_restore reported errors in output:', result.stdout)
+            throw new Error('pg_restore completed but reported errors. Check logs above.')
           }
+          console.log('pg_restore completed successfully')
         } catch (restoreError: any) {
           console.error('pg_restore failed:', restoreError.message)
           console.error('stderr:', restoreError.stderr)
+          console.error('stdout:', restoreError.stdout)
           throw new Error(`Failed to restore database: ${restoreError.message}. Make sure pg_restore is available.`)
         }
       } else {
@@ -184,20 +205,44 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       
       // Verify restore by checking if data exists
       try {
-        const bookingCount = await prisma.booking.count()
-        console.log(`Verification: Found ${bookingCount} bookings after restore`)
-        if (bookingCount === 0) {
-          console.warn('Warning: No bookings found after restore. The restore may have failed or the backup was empty.')
+        bookingsAfter = await prisma.booking.count()
+        propertiesAfter = await prisma.property.count()
+        ownersAfter = await prisma.owner.count()
+        console.log(`Verification after restore:`)
+        console.log(`  - Bookings: ${bookingsAfter} (was ${bookingsBefore})`)
+        console.log(`  - Properties: ${propertiesAfter}`)
+        console.log(`  - Owners: ${ownersAfter}`)
+        
+        if (bookingsAfter === 0 && bookingsBefore > 0) {
+          console.error('ERROR: All bookings were lost during restore!')
+          throw new Error('Restore completed but all bookings were lost. The restore may have failed silently.')
         }
-      } catch (verifyError) {
+      } catch (verifyError: any) {
         console.error('Verification query failed:', verifyError)
-        // Don't fail the restore if verification fails
+        if (verifyError.message.includes('lost during restore')) {
+          throw verifyError
+        }
+        // Don't fail the restore if verification query fails for other reasons
       }
     } else if (fs.existsSync(jsonDump)) {
       // Restore from JSON (fallback)
+      console.log('Found database.json dump, restoring...')
       const jsonContent = await readFile(jsonDump, 'utf-8')
       const backup = JSON.parse(jsonContent)
       await restoreDatabaseData(backup, clearExisting)
+      
+      // Verify JSON restore
+      try {
+        bookingsAfter = await prisma.booking.count()
+        propertiesAfter = await prisma.property.count()
+        ownersAfter = await prisma.owner.count()
+        console.log(`Verification after JSON restore:`)
+        console.log(`  - Bookings: ${bookingsAfter}`)
+        console.log(`  - Properties: ${propertiesAfter}`)
+        console.log(`  - Owners: ${ownersAfter}`)
+      } catch (verifyError) {
+        console.error('Verification query failed:', verifyError)
+      }
     } else {
       throw new Error('No database dump found in archive (expected database.sql or database.json)')
     }
@@ -220,10 +265,22 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
     // Clean up
     await execAsync(`rm -rf "${tempDir}"`).catch(() => {})
 
+    // Build success message with verification
+    let message = 'Backup restored successfully.'
+    if (filesRestored > 0) {
+      message += ` ${filesRestored} files restored.`
+    }
+    if (typeof bookingsAfter !== 'undefined') {
+      message += ` Database: ${bookingsAfter} bookings, ${propertiesAfter} properties, ${ownersAfter} owners.`
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Backup restored successfully. ${filesRestored > 0 ? `${filesRestored} files restored.` : ''}`.trim(),
+      message: message.trim(),
       filesRestored,
+      bookingsRestored: bookingsAfter,
+      propertiesRestored: propertiesAfter,
+      ownersRestored: ownersAfter,
     })
   } catch (error: unknown) {
     await execAsync(`rm -rf "${tempDir}"`).catch(() => {})
