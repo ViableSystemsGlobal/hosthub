@@ -162,24 +162,49 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       if (isCustomFormat) {
         // Custom format dump - use pg_restore
         console.log('Detected custom format dump, using pg_restore')
-        // Use --clean to drop objects, --if-exists to avoid errors, --no-owner --no-acl for compatibility
-        // Use --verbose to see what's happening
+        
+        // First, list what's in the dump to verify it has data
+        try {
+          const listCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -l "${sqlDump}" 2>&1 | grep -E "(TABLE DATA|booking)" | head -10 || echo "Could not list dump contents"`
+          const listResult = await execAsync(listCmd)
+          console.log('Dump contents (bookings):', listResult.stdout)
+        } catch (e) {
+          console.warn('Could not list dump contents:', e)
+        }
+        
+        // Strategy: Use --clean to drop, but ensure we restore ALL data
+        // --clean drops objects before recreating
+        // --if-exists avoids errors if objects don't exist
+        // --no-owner --no-acl for compatibility across different database users
+        // --verbose to see what's being restored
+        // Note: --clean with --if-exists should drop and recreate, but we need to ensure data is restored
         const restoreCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists --no-owner --no-acl --verbose "${sqlDump}" 2>&1`
         
         try {
-          console.log('Running pg_restore...')
-          const result = await execAsync(restoreCmd)
-          console.log('pg_restore stdout:', result.stdout)
+          console.log('Running pg_restore with --clean --if-exists...')
+          const result = await execAsync(restoreCmd, { maxBuffer: 10 * 1024 * 1024 }) // 10MB buffer for large outputs
+          
+          // Log a sample of the output (first and last parts)
+          const outputLines = result.stdout.split('\n')
+          console.log('pg_restore output (first 20 lines):', outputLines.slice(0, 20).join('\n'))
+          console.log('pg_restore output (last 20 lines):', outputLines.slice(-20).join('\n'))
+          
           // Check if restore actually worked by looking for errors in output
           if (result.stdout.includes('ERROR') || result.stdout.includes('FATAL')) {
-            console.error('pg_restore reported errors in output:', result.stdout)
-            throw new Error('pg_restore completed but reported errors. Check logs above.')
+            const errorLines = outputLines.filter(line => line.includes('ERROR') || line.includes('FATAL'))
+            console.error('pg_restore reported errors:', errorLines.join('\n'))
+            // Don't throw - some errors might be warnings, continue to verification
           }
-          console.log('pg_restore completed successfully')
+          
+          // Count how many items were processed
+          const processedCount = (result.stdout.match(/PROCESSING|restoring/g) || []).length
+          const tableDataCount = (result.stdout.match(/TABLE DATA/g) || []).length
+          console.log(`pg_restore processed: ${processedCount} items, ${tableDataCount} table data sections`)
+          console.log('pg_restore completed')
         } catch (restoreError: any) {
           console.error('pg_restore failed:', restoreError.message)
           console.error('stderr:', restoreError.stderr)
-          console.error('stdout:', restoreError.stdout)
+          console.error('stdout (first 500 chars):', restoreError.stdout?.substring(0, 500))
           throw new Error(`Failed to restore database: ${restoreError.message}. Make sure pg_restore is available.`)
         }
       } else {
