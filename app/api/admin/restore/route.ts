@@ -228,8 +228,15 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       
       console.log('Database restore completed successfully')
       
+      // Wait a moment for database to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       // Verify restore by checking if data exists
       try {
+        // Force Prisma to reconnect to get fresh data
+        await prisma.$disconnect()
+        await prisma.$connect()
+        
         bookingsAfter = await prisma.booking.count()
         propertiesAfter = await prisma.property.count()
         ownersAfter = await prisma.owner.count()
@@ -237,6 +244,17 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
         console.log(`  - Bookings: ${bookingsAfter} (was ${bookingsBefore})`)
         console.log(`  - Properties: ${propertiesAfter}`)
         console.log(`  - Owners: ${ownersAfter}`)
+        
+        // Check for specific booking if we know what to look for
+        // This helps debug if a specific booking is missing
+        if (bookingsAfter > 0) {
+          const sampleBookings = await prisma.booking.findMany({
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, guestName: true, checkInDate: true, totalPayout: true, currency: true }
+          })
+          console.log('Sample bookings after restore:', JSON.stringify(sampleBookings, null, 2))
+        }
         
         if (bookingsAfter === 0 && bookingsBefore > 0) {
           console.error('ERROR: All bookings were lost during restore!')
