@@ -170,19 +170,20 @@ export async function generateBookingsReport(
             case 'owner':
               return booking.Owner?.name || ''
             case 'revenue':
-              // Convert totalPayoutInBase from USD to GHS using historical rate from this booking
-              const revenueUsdToGhsRate = booking.currency === 'GHS' && booking.fxRateToBase > 0
-                ? 1 / booking.fxRateToBase
-                : await getFxRate('USD', 'GHS')
-              return formatCurrency(booking.totalPayoutInBase * revenueUsdToGhsRate, Currency.GHS)
+              // Use original totalPayout and convert to GHS if needed
+              if (booking.currency === 'GHS') {
+                // Already in GHS, use directly
+                return formatCurrency(booking.totalPayout, Currency.GHS)
+              } else {
+                // Convert from USD to GHS
+                const usdToGhsRate = await getFxRate('USD', 'GHS')
+                return formatCurrency(booking.totalPayout * usdToGhsRate, Currency.GHS)
+              }
             case 'totalPayout':
               return formatCurrency(booking.totalPayout, booking.currency as Currency)
             case 'totalPayoutInBase':
-              // Convert from USD to GHS using historical rate from this booking
-              const usdToGhsRate = booking.currency === 'GHS' && booking.fxRateToBase > 0
-                ? 1 / booking.fxRateToBase
-                : await getFxRate('USD', 'GHS')
-              return formatCurrency(booking.totalPayoutInBase * usdToGhsRate, Currency.GHS)
+              // Show totalPayoutInBase in USD (base currency)
+              return formatCurrency(booking.totalPayoutInBase, Currency.USD)
             case 'baseAmount':
               return formatCurrency(booking.baseAmount, booking.currency as Currency)
             case 'cleaningFee':
