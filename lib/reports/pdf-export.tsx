@@ -84,45 +84,44 @@ function calculatePropertySummary(
   
   switch (reportType) {
     case 'bookings': {
-      // Find relevant columns
-      const payoutHeader = headers.find(h => 
-        h.toLowerCase().includes('payout') && !h.toLowerCase().includes('base')
-      ) || 'Payout'
+      // Find relevant columns - support both "Revenue" and "Payout" column names
+      const revenueHeader = headers.find(h => 
+        h.toLowerCase().includes('revenue') || 
+        (h.toLowerCase().includes('payout') && !h.toLowerCase().includes('base'))
+      ) || 'Revenue'
       const nightsHeader = headers.find(h => h.toLowerCase().includes('night')) || 'Nights'
-      const currencyHeader = headers.find(h => h.toLowerCase().includes('currency')) || 'Currency'
       
-      // Group revenue by currency
-      const revenueByCurrency: Record<string, number> = {}
+      // All values in the report are already converted to GHS
+      let totalRevenue = 0
       let totalNights = 0
       
       rows.forEach(row => {
         // Get values from row (could be object or array)
-        const payoutStr = String(row[payoutHeader] || row['Payout'] || '0')
-        const currency = String(row[currencyHeader] || row['Currency'] || 'GHS')
-        const nights = parseInt(String(row[nightsHeader] || row['Nights'] || '0'), 10) || 0
+        // Try multiple possible keys for revenue
+        const revenueStr = String(
+          row[revenueHeader] || 
+          row['Revenue'] || 
+          row['Payout'] || 
+          row['revenue'] || 
+          row['payout'] || 
+          '0'
+        )
+        const nights = parseInt(String(row[nightsHeader] || row['Nights'] || row['nights'] || '0'), 10) || 0
         
-        // Parse the payout value (remove currency symbol and commas)
-        const payoutValue = parseFloat(payoutStr.replace(/[^\d.-]/g, '')) || 0
+        // Parse the revenue value (remove currency symbols like GHS, $, commas)
+        const revenueValue = parseFloat(revenueStr.replace(/[^\d.-]/g, '')) || 0
         
-        if (!revenueByCurrency[currency]) {
-          revenueByCurrency[currency] = 0
-        }
-        revenueByCurrency[currency] += payoutValue
+        totalRevenue += revenueValue
         totalNights += nights
       })
       
-      // Format revenue string
-      const revenueStr = Object.entries(revenueByCurrency)
-        .map(([curr, amount]) => {
-          const symbol = curr === 'USD' ? '$' : curr === 'GHS' ? 'GHS ' : `${curr} `
-          return `${symbol}${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        })
-        .join(' + ')
+      // Format revenue string - values are already in GHS from the generator
+      const revenueStr = `GHS ${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       
       return {
         'Total Bookings': rows.length,
         'Total Nights': totalNights,
-        'Total Revenue': revenueStr || '$0.00',
+        'Total Revenue': revenueStr,
       }
     }
     
