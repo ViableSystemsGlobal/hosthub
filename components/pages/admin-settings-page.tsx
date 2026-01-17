@@ -141,6 +141,8 @@ export function AdminSettingsPage() {
   const [testWhatsAppNumber, setTestWhatsAppNumber] = useState('')
   const [testWhatsAppMessage, setTestWhatsAppMessage] = useState('')
   const [testingWhatsApp, setTestingWhatsApp] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [testEmail, setTestEmail] = useState('')
   const [testEmailSubject, setTestEmailSubject] = useState('')
   const [testEmailMessage, setTestEmailMessage] = useState('')
@@ -1243,6 +1245,7 @@ export function AdminSettingsPage() {
                   </p>
                   <Button
                     onClick={async () => {
+                      setBackingUp(true)
                       try {
                         const res = await fetch('/api/admin/backup')
                         if (!res.ok) {
@@ -1266,12 +1269,24 @@ export function AdminSettingsPage() {
                       } catch (error: any) {
                         console.error('Backup error:', error)
                         toast.error('Backup failed', error.message)
+                      } finally {
+                        setBackingUp(false)
                       }
                     }}
+                    disabled={backingUp}
                     className="w-full sm:w-auto"
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Backup
+                    {backingUp ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating Backup...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Backup
+                      </>
+                    )}
                   </Button>
                 </div>
 
@@ -1284,10 +1299,17 @@ export function AdminSettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="backupFile">Select Backup File</Label>
+                      {restoring && (
+                        <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg mb-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <span className="text-sm text-blue-700">Restoring backup... This may take a moment.</span>
+                        </div>
+                      )}
                       <Input
                         id="backupFile"
                         type="file"
                         accept=".json"
+                        disabled={restoring}
                         onChange={async (e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
@@ -1310,6 +1332,7 @@ export function AdminSettingsPage() {
                             )
 
                             if (!confirmed) {
+                              e.target.value = ''
                               return
                             }
 
@@ -1317,6 +1340,7 @@ export function AdminSettingsPage() {
                               'Clear all existing data before restoring? (Recommended for clean restore)'
                             )
 
+                            setRestoring(true)
                             const res = await fetch('/api/admin/restore', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
@@ -1335,6 +1359,8 @@ export function AdminSettingsPage() {
                           } catch (error: any) {
                             console.error('Restore error:', error)
                             toast.error('Restore failed', error.message)
+                          } finally {
+                            setRestoring(false)
                           }
                         }}
                       />
