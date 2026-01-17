@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const statements: any[] = []
 
     for (const owner of owners) {
-      // Get all bookings in period for this owner
+      // Get COMPLETED bookings in period for this owner (to match Revenue report)
       const bookings = await prisma.booking.findMany({
         where: {
           ownerId: owner.id,
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
             gte: startDate,
             lte: endDate,
           },
+          status: 'COMPLETED', // Only completed bookings for consistency with Revenue report
         },
         include: { Property: true },
       })
