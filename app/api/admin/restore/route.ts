@@ -229,6 +229,11 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       console.log('Found database.json dump, restoring...')
       const jsonContent = await readFile(jsonDump, 'utf-8')
       const backup = JSON.parse(jsonContent)
+      
+      // Check how many bookings are in the backup
+      const bookingsInBackup = backup.data?.bookings?.length || 0
+      console.log(`Bookings in backup file: ${bookingsInBackup}`)
+      
       await restoreDatabaseData(backup, clearExisting)
       
       // Verify JSON restore
@@ -237,9 +242,14 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
         propertiesAfter = await prisma.property.count()
         ownersAfter = await prisma.owner.count()
         console.log(`Verification after JSON restore:`)
-        console.log(`  - Bookings: ${bookingsAfter}`)
+        console.log(`  - Bookings in backup: ${bookingsInBackup}`)
+        console.log(`  - Bookings after restore: ${bookingsAfter}`)
         console.log(`  - Properties: ${propertiesAfter}`)
         console.log(`  - Owners: ${ownersAfter}`)
+        
+        if (bookingsInBackup > 0 && bookingsAfter < bookingsInBackup) {
+          console.warn(`WARNING: Only ${bookingsAfter} of ${bookingsInBackup} bookings were restored!`)
+        }
       } catch (verifyError) {
         console.error('Verification query failed:', verifyError)
       }
