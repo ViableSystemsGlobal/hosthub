@@ -549,90 +549,185 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
       {propertyPages}
       
       {/* Statements Section - After All Properties */}
-      {statements && statements.length > 0 && statements.map((statement, stmtIdx) => (
-        <Page key={`statement-${statement.owner.id}`} size="A4" style={styles.statementPage} wrap>
-          <View style={styles.statementHeader}>
+      {statements && statements.length > 0 && statements.map((statement) => (
+        <React.Fragment key={`statement-${statement.owner.id}`}>
+          {/* Statement Cover Page */}
+          <Page size="A4" orientation="landscape" style={{
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100%',
+          }}>
             {logoUrl && (
-              <Image src={logoUrl} style={styles.logoHeader} />
+              <Image src={logoUrl} style={{
+                width: 200,
+                height: 'auto',
+                marginBottom: 40,
+                objectFit: 'contain',
+              }} />
             )}
-            <Text style={styles.statementTitle}>Statement of Account</Text>
-            <Text style={styles.statementOwner}>{statement.owner.name}</Text>
-            <Text style={styles.statementPeriod}>
-              Period: {format(new Date(statement.periodStart), 'MMM dd, yyyy')} to {format(new Date(statement.periodEnd), 'MMM dd, yyyy')}
-            </Text>
-          </View>
+            <Text style={{
+              fontSize: 24,
+              fontWeight: 700,
+              marginBottom: 20,
+            }}>Statement of Account</Text>
+            <Text style={{
+              fontSize: 14,
+              color: '#666',
+            }}>{statement.owner.name}</Text>
+          </Page>
+          
+          {/* Statement Content Page */}
+          <Page size="A4" orientation="landscape" style={{
+            padding: 40,
+            fontSize: 12,
+          }} wrap>
+            <View style={{
+              marginBottom: 30,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+            }}>
+              {logoUrl && (
+                <Image src={logoUrl} style={{
+                  width: 150,
+                  height: 'auto',
+                  marginBottom: 20,
+                  objectFit: 'contain',
+                }} />
+              )}
+              <View style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                width: '100%',
+              }}>
+                <Text style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  marginBottom: 10,
+                  textAlign: 'center',
+                }}>Statement of Account</Text>
+                <Text>Owner: {statement.owner.name}</Text>
+                <Text>
+                  Period: {new Date(statement.periodStart).toLocaleDateString()} to {new Date(statement.periodEnd).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
 
-          {/* Transactions Table */}
-          {statement.statementLines && statement.statementLines.length > 0 && (
-            <View style={styles.statementSection}>
-              <Text style={styles.statementSectionTitle}>Transactions</Text>
-              <View style={styles.statementTable}>
-                <View style={styles.statementTableHeader}>
-                  <View style={[styles.statementTableHeaderCell, { flex: 3 }]}>
-                    <Text>Description</Text>
-                  </View>
-                  <View style={[styles.statementTableHeaderCell, { flex: 1, borderRight: 0 }]}>
-                    <Text>Amount</Text>
-                  </View>
+            {/* Transactions */}
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontWeight: 700, marginBottom: 10 }}>Transactions</Text>
+              <View style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+                <View style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  backgroundColor: '#f5f5f5',
+                  borderBottom: '1pt solid #e0e0e0',
+                  padding: 8,
+                  fontWeight: 700,
+                }}>
+                  <Text style={{ flex: 1 }}>Description</Text>
+                  <Text style={{ flex: 1 }}>Amount</Text>
                 </View>
-                {statement.statementLines.slice(0, 50).map((line, lineIdx) => (
-                  <View key={lineIdx} style={styles.statementTableRow}>
-                    <View style={[styles.statementTableCell, { flex: 3 }]}>
-                      <Text>{line.description}</Text>
-                    </View>
-                    <View style={[styles.statementTableCell, { flex: 1, borderRight: 0 }]}>
-                      <Text>{formatCurrency(line.amountInDisplayCurrency, statement.displayCurrency)}</Text>
-                    </View>
+                {statement.statementLines && statement.statementLines.slice(0, 50).map((line: any, index: number) => (
+                  <View key={index} style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    borderBottom: '1pt solid #e0e0e0',
+                    padding: 8,
+                  }}>
+                    <Text style={{ flex: 1 }}>{line.description}</Text>
+                    <Text style={{ flex: 1 }}>{formatCurrency(line.amountInDisplayCurrency, statement.displayCurrency)}</Text>
                   </View>
                 ))}
               </View>
             </View>
-          )}
 
-          {/* Summary */}
-          <View style={styles.statementSummary}>
-            <View style={styles.statementSummaryRow}>
-              <Text style={styles.statementSummaryLabel}>Revenue (Total):</Text>
-              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.grossRevenue, statement.displayCurrency)}</Text>
+            {/* Summary */}
+            <View style={{
+              marginTop: 20,
+              padding: 15,
+              backgroundColor: '#f9f9f9',
+            }}>
+              <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text>Revenue (Total):</Text>
+                <Text>{formatCurrency(statement.grossRevenue, statement.displayCurrency)}</Text>
+              </View>
+              {(statement.companyRevenue > 0 || statement.ownerRevenue > 0) && (
+                <>
+                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 15, fontSize: 10 }}>
+                    <Text>↳ Received by Company:</Text>
+                    <Text>{formatCurrency(statement.companyRevenue || 0, statement.displayCurrency)}</Text>
+                  </View>
+                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 15, fontSize: 10 }}>
+                    <Text>↳ Received by Owner (already paid):</Text>
+                    <Text>{formatCurrency(statement.ownerRevenue || 0, statement.displayCurrency)}</Text>
+                  </View>
+                </>
+              )}
+              <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text>Commission (Total):</Text>
+                <Text>{formatCurrency(statement.commissionAmount, statement.displayCurrency)}</Text>
+              </View>
+              {(statement.companyCommission > 0 || statement.ownerCommission > 0) && (
+                <>
+                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 15, fontSize: 10 }}>
+                    <Text>↳ On Company bookings:</Text>
+                    <Text>{formatCurrency(statement.companyCommission || 0, statement.displayCurrency)}</Text>
+                  </View>
+                  <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 15, fontSize: 10 }}>
+                    <Text>↳ On Owner bookings (owed to us):</Text>
+                    <Text>{formatCurrency(statement.ownerCommission || 0, statement.displayCurrency)}</Text>
+                  </View>
+                </>
+              )}
+              <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text>Gross (After Commission):</Text>
+                <Text>{formatCurrency(statement.grossRevenue - statement.commissionAmount, statement.displayCurrency)}</Text>
+              </View>
+              <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text>Total Expenses:</Text>
+                <Text>{formatCurrency(statement.totalExpenses, statement.displayCurrency)}</Text>
+              </View>
+              <View style={{
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 8,
+                fontSize: 16,
+                fontWeight: 700,
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: `2pt solid ${validThemeColor}`,
+              }}>
+                <Text>Net to Owner:</Text>
+                <Text>{formatCurrency(statement.netToOwner, statement.displayCurrency)}</Text>
+              </View>
+              <View style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text>Opening Balance:</Text>
+                <Text>{formatCurrency(statement.openingBalance, statement.displayCurrency)}</Text>
+              </View>
+              <View style={{
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 8,
+                fontSize: 16,
+                fontWeight: 700,
+                marginTop: 10,
+                paddingTop: 10,
+                borderTop: `2pt solid ${validThemeColor}`,
+              }}>
+                <Text>Closing Balance:</Text>
+                <Text>{formatCurrency(statement.closingBalance, statement.displayCurrency)}</Text>
+              </View>
             </View>
-            {(statement.companyRevenue > 0 || statement.ownerRevenue > 0) && (
-              <>
-                <View style={styles.statementSubRow}>
-                  <Text style={styles.statementSubLabel}>↳ Received by Company:</Text>
-                  <Text style={styles.statementSubValue}>{formatCurrency(statement.companyRevenue, statement.displayCurrency)}</Text>
-                </View>
-                <View style={styles.statementSubRow}>
-                  <Text style={styles.statementSubLabel}>↳ Received by Owner:</Text>
-                  <Text style={styles.statementSubValue}>{formatCurrency(statement.ownerRevenue, statement.displayCurrency)}</Text>
-                </View>
-              </>
-            )}
-            <View style={styles.statementSummaryRow}>
-              <Text style={styles.statementSummaryLabel}>Commission (Total):</Text>
-              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.commissionAmount, statement.displayCurrency)}</Text>
-            </View>
-            <View style={styles.statementSummaryRow}>
-              <Text style={styles.statementSummaryLabel}>Gross (After Commission):</Text>
-              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.grossRevenue - statement.commissionAmount, statement.displayCurrency)}</Text>
-            </View>
-            <View style={styles.statementSummaryRow}>
-              <Text style={styles.statementSummaryLabel}>Total Expenses:</Text>
-              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.totalExpenses, statement.displayCurrency)}</Text>
-            </View>
-            <View style={[styles.statementSummaryRow, styles.statementTotal]}>
-              <Text style={styles.statementTotalLabel}>Net to Owner:</Text>
-              <Text style={styles.statementTotalValue}>{formatCurrency(statement.netToOwner, statement.displayCurrency)}</Text>
-            </View>
-            <View style={styles.statementSummaryRow}>
-              <Text style={styles.statementSummaryLabel}>Opening Balance:</Text>
-              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.openingBalance, statement.displayCurrency)}</Text>
-            </View>
-            <View style={[styles.statementSummaryRow, styles.statementTotal]}>
-              <Text style={styles.statementTotalLabel}>Closing Balance:</Text>
-              <Text style={styles.statementTotalValue}>{formatCurrency(statement.closingBalance, statement.displayCurrency)}</Text>
-            </View>
-          </View>
-        </Page>
+          </Page>
+        </React.Fragment>
       ))}
       
       {/* Receipts Page - After All Properties */}
