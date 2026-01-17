@@ -98,7 +98,7 @@ export function AdminBookingsPage() {
       
       let upcomingSum = 0
       for (const b of allBookings.filter(b => {
-        if (b.status !== 'UPCOMING' && b.status !== 'CONFIRMED') return false
+        if (b.status !== 'UPCOMING') return false
         const checkIn = new Date(b.checkInDate)
         return checkIn >= monthStart && checkIn <= monthEnd
       })) {
