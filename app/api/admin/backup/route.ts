@@ -1,76 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth-helpers'
 import { prisma } from '@/lib/prisma'
-import { readdir, readFile, stat } from 'fs/promises'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { readdir, readFile, stat, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import { tmpdir } from 'os'
+import fs from 'fs'
 
-interface BackupFile {
-  path: string // Relative path like "uploads/receipts/123.png"
-  name: string
-  data: string // Base64 encoded file content
-  mimeType: string
-}
-
-// Get mime type from file extension
-function getMimeType(filename: string): string {
-  const ext = filename.toLowerCase().split('.').pop()
-  const mimeTypes: Record<string, string> = {
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
-    'svg': 'image/svg+xml',
-    'pdf': 'application/pdf',
-    'mp4': 'video/mp4',
-    'mov': 'video/quicktime',
-    'avi': 'video/x-msvideo',
-  }
-  return mimeTypes[ext || ''] || 'application/octet-stream'
-}
-
-// Recursively scan directory for files
-async function scanDirectory(dirPath: string, basePath: string): Promise<BackupFile[]> {
-  const files: BackupFile[] = []
-  
-  try {
-    const entries = await readdir(dirPath, { withFileTypes: true })
-    
-    for (const entry of entries) {
-      const fullPath = join(dirPath, entry.name)
-      const relativePath = join(basePath, entry.name)
-      
-      if (entry.isDirectory()) {
-        // Recursively scan subdirectories
-        const subFiles = await scanDirectory(fullPath, relativePath)
-        files.push(...subFiles)
-      } else if (entry.isFile()) {
-        try {
-          const fileContent = await readFile(fullPath)
-          const base64Data = fileContent.toString('base64')
-          
-          files.push({
-            path: relativePath,
-            name: entry.name,
-            data: base64Data,
-            mimeType: getMimeType(entry.name),
-          })
-        } catch (fileError) {
-          console.error(`Failed to read file ${fullPath}:`, fileError)
-          // Continue with other files
-        }
-      }
-    }
-  } catch (error) {
-    // Directory doesn't exist or can't be read
-    console.log(`Directory ${dirPath} not accessible:`, error)
-  }
-  
-  return files
-}
+const execAsync = promisify(exec)
 
 /**
- * GET - Create a backup of all database data and files
+ * GET - Create a backup using pg_dump + zip archive
+ * Returns a .tar.gz or .zip file with database dump + uploads folder
  */
 export async function GET(request: NextRequest) {
   try {
@@ -84,105 +26,158 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Scan uploads directory for files
-    const uploadsDir = join(process.cwd(), 'public', 'uploads')
-    const uploadedFiles = await scanDirectory(uploadsDir, 'uploads')
-    
-    console.log(`Found ${uploadedFiles.length} files to backup`)
-
-    // Fetch all data from all tables
-    const backup = {
-      version: '1.1', // Updated version to indicate files support
-      createdAt: new Date().toISOString(),
-      includesFiles: true,
-      data: {
-        // Core entities
-        // Users must be backed up separately to include non-owner users (e.g., managers)
-        users: await prisma.user.findMany({
-          where: {
-            role: { not: 'SUPER_ADMIN' }, // Exclude super admin from backup
-          },
-        }),
-        owners: await prisma.owner.findMany({
-          include: {
-            OwnerWallet: true,
-            User: true,
-          },
-        }),
-        properties: await prisma.property.findMany(),
-        bookings: await prisma.booking.findMany(),
-        expenses: await prisma.expense.findMany(),
-        statements: await prisma.statement.findMany({
-          include: {
-            StatementLine: true,
-          },
-        }),
-        issues: await prisma.issue.findMany({
-          include: {
-            IssueAttachment: true,
-            IssueComment: true,
-          },
-        }),
-        tasks: await prisma.task.findMany({
-          include: {
-            TaskAttachment: true,
-            TaskChecklist: true,
-          },
-        }),
-        documents: await prisma.document.findMany(),
-        contacts: await prisma.contact.findMany(),
-        guestContacts: await prisma.guestContact.findMany(),
-        payouts: await prisma.payout.findMany(),
-        ownerTransactions: await prisma.ownerTransaction.findMany(),
-        recurringTasks: await prisma.recurringTask.findMany(),
-        reports: await prisma.report.findMany(),
-        cleaningChecklists: await prisma.cleaningChecklist.findMany(),
-        electricityMeterReadings: await prisma.electricityMeterReading.findMany(),
-        electricityAlerts: await prisma.electricityAlert.findMany(),
-        inventoryItems: await prisma.inventoryItem.findMany({
-          include: {
-            History: true,
-          },
-        }),
-        workflows: await prisma.workflowRule.findMany(),
-        workflowExecutions: await prisma.workflowExecution.findMany(),
-        conversations: await prisma.conversation.findMany({
-          include: {
-            Message: true,
-          },
-        }),
-        notifications: await prisma.notification.findMany(),
-        aiInsightCache: await prisma.aiInsightCache.findMany(),
-        // Settings and templates (exclude sensitive data)
-        emailTemplates: await prisma.emailTemplate.findMany(),
-        smsTemplates: await prisma.sMSTemplate.findMany(),
-        settings: await prisma.setting.findMany({
-          where: {
-            // Exclude sensitive settings
-            key: {
-              notIn: [
-                'DEYWURO_PASSWORD',
-                'SMTP_PASSWORD',
-                'TWILIO_AUTH_TOKEN',
-                'OPENAI_API_KEY',
-                'ANTHROPIC_API_KEY',
-                'GEMINI_API_KEY',
-              ],
-            },
-          },
-        }),
-      },
-      // Include uploaded files (images, receipts, logos, etc.)
-      files: uploadedFiles,
+    const dbUrl = process.env.DATABASE_URL
+    if (!dbUrl) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL not configured' },
+        { status: 500 }
+      )
     }
 
-    // Return as JSON download
-    return new NextResponse(JSON.stringify(backup, null, 2), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="hosthub-backup-${new Date().toISOString().split('T')[0]}.json"`,
-      },
-    })
+    // Parse DATABASE_URL to extract connection details
+    // Format: postgresql://user:password@host:port/database
+    const url = new URL(dbUrl)
+    const dbUser = url.username
+    const dbPassword = url.password
+    const dbHost = url.hostname
+    const dbPort = url.port || '5432'
+    const dbName = url.pathname.slice(1) // Remove leading /
+
+    // Create temp directory for backup
+    const tempDir = join(tmpdir(), `hosthub-backup-${Date.now()}`)
+    await mkdir(tempDir, { recursive: true })
+
+    const dumpFile = join(tempDir, 'database.sql')
+    const uploadsDir = join(process.cwd(), 'public', 'uploads')
+    const backupArchive = join(tempDir, 'backup.tar.gz')
+
+    try {
+      // Step 1: Create database dump using pg_dump
+      // Set PGPASSWORD environment variable to avoid password prompt
+      const pgDumpCmd = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F c -f "${dumpFile}"`
+      
+      try {
+        await execAsync(pgDumpCmd)
+        console.log('Database dump created successfully')
+      } catch (pgDumpError: any) {
+        // If pg_dump is not available, fall back to JSON export
+        console.warn('pg_dump not available, falling back to JSON export:', pgDumpError.message)
+        
+        // Export as JSON instead
+        const backup = {
+          version: '2.0',
+          createdAt: new Date().toISOString(),
+          format: 'json',
+          data: {
+            users: await prisma.user.findMany({
+              where: { role: { not: 'SUPER_ADMIN' } },
+            }),
+            owners: await prisma.owner.findMany({
+              include: { OwnerWallet: true, User: true },
+            }),
+            properties: await prisma.property.findMany(),
+            bookings: await prisma.booking.findMany(),
+            expenses: await prisma.expense.findMany(),
+            statements: await prisma.statement.findMany({
+              include: { StatementLine: true },
+            }),
+            issues: await prisma.issue.findMany({
+              include: { IssueAttachment: true, IssueComment: true },
+            }),
+            tasks: await prisma.task.findMany({
+              include: { TaskAttachment: true, TaskChecklist: true },
+            }),
+            documents: await prisma.document.findMany(),
+            contacts: await prisma.contact.findMany(),
+            guestContacts: await prisma.guestContact.findMany(),
+            payouts: await prisma.payout.findMany(),
+            ownerTransactions: await prisma.ownerTransaction.findMany(),
+            recurringTasks: await prisma.recurringTask.findMany(),
+            reports: await prisma.report.findMany(),
+            cleaningChecklists: await prisma.cleaningChecklist.findMany(),
+            electricityMeterReadings: await prisma.electricityMeterReading.findMany(),
+            electricityAlerts: await prisma.electricityAlert.findMany(),
+            inventoryItems: await prisma.inventoryItem.findMany({
+              include: { History: true },
+            }),
+            workflows: await prisma.workflowRule.findMany(),
+            workflowExecutions: await prisma.workflowExecution.findMany(),
+            conversations: await prisma.conversation.findMany({
+              include: { Message: true },
+            }),
+            notifications: await prisma.notification.findMany(),
+            aiInsightCache: await prisma.aiInsightCache.findMany(),
+            emailTemplates: await prisma.emailTemplate.findMany(),
+            smsTemplates: await prisma.sMSTemplate.findMany(),
+            settings: await prisma.setting.findMany({
+              where: {
+                key: {
+                  notIn: [
+                    'DEYWURO_PASSWORD',
+                    'SMTP_PASSWORD',
+                    'TWILIO_AUTH_TOKEN',
+                    'OPENAI_API_KEY',
+                    'ANTHROPIC_API_KEY',
+                    'GEMINI_API_KEY',
+                  ],
+                },
+              },
+            }),
+          },
+        }
+
+        const jsonFile = join(tempDir, 'database.json')
+        await writeFile(jsonFile, JSON.stringify(backup, null, 2))
+        
+        // Create tar.gz with JSON + uploads
+        const tarCmd = `cd "${tempDir}" && tar -czf "${backupArchive}" database.json uploads/ 2>/dev/null || (cd "${tempDir}" && zip -r "${backupArchive.replace('.tar.gz', '.zip')}" database.json uploads/ 2>/dev/null || echo "Archive tools not available")`
+        await execAsync(tarCmd)
+      }
+
+      // Step 2: Copy uploads directory to temp
+      const tempUploads = join(tempDir, 'uploads')
+      await execAsync(`cp -r "${uploadsDir}" "${tempUploads}" 2>/dev/null || echo "Uploads directory not found"`)
+
+      // Step 3: Create archive (tar.gz or zip)
+      let archivePath = backupArchive
+      let archiveType = 'application/gzip'
+      let archiveExt = 'tar.gz'
+
+      // Try tar.gz first, fall back to zip
+      const createArchive = `cd "${tempDir}" && tar -czf "${backupArchive}" database.sql uploads/ 2>/dev/null || (cd "${tempDir}" && zip -r "${backupArchive.replace('.tar.gz', '.zip')}" database.sql uploads/ 2>/dev/null && echo "zip") || echo "failed"`
+      
+      const archiveResult = await execAsync(createArchive)
+      
+      if (archiveResult.stdout.includes('zip') || !require('fs').existsSync(backupArchive)) {
+        archivePath = backupArchive.replace('.tar.gz', '.zip')
+        archiveType = 'application/zip'
+        archiveExt = 'zip'
+      }
+
+      if (!fs.existsSync(archivePath)) {
+        throw new Error('Failed to create archive. Please ensure tar or zip is available.')
+      }
+
+      // Step 4: Read archive and return as download
+      const archiveBuffer = await readFile(archivePath)
+      
+      // Clean up temp files
+      await execAsync(`rm -rf "${tempDir}"`).catch(() => {})
+
+      const filename = `hosthub-backup-${new Date().toISOString().split('T')[0]}.${archiveExt}`
+
+      return new NextResponse(archiveBuffer, {
+        headers: {
+          'Content-Type': archiveType,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length': archiveBuffer.length.toString(),
+        },
+      })
+    } catch (error: unknown) {
+      // Clean up on error
+      await execAsync(`rm -rf "${tempDir}"`).catch(() => {})
+      throw error
+    }
   } catch (error: unknown) {
     const err = error as { message?: string }
     console.error('Backup error:', error)
