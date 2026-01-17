@@ -125,6 +125,7 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
 
     // Restore database
     if (fs.existsSync(sqlDump)) {
+      console.log('Found database.sql dump, restoring...')
       // Restore from SQL dump
       const dbUrl = process.env.DATABASE_URL
       if (!dbUrl) {
@@ -138,15 +139,59 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
       const dbPort = url.port || '5432'
       const dbName = url.pathname.slice(1)
 
-      // For custom format dumps, use pg_restore
-      const restoreCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists "${sqlDump}"`
-      
-      try {
-        await execAsync(restoreCmd)
-      } catch (restoreError: any) {
-        // If pg_restore fails, try psql for plain SQL
+      // Check if dump is custom format (binary) or plain SQL
+      // Custom format dumps start with "PGDMP" magic bytes
+      const dumpBuffer = await readFile(sqlDump)
+      const isCustomFormat = dumpBuffer.slice(0, 5).toString() === 'PGDMP'
+
+      if (isCustomFormat) {
+        // Custom format dump - use pg_restore
+        console.log('Detected custom format dump, using pg_restore')
+        const restoreCmd = `PGPASSWORD="${dbPassword}" pg_restore -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} --clean --if-exists --no-owner --no-acl "${sqlDump}"`
+        
+        try {
+          console.log('Running pg_restore...')
+          const result = await execAsync(restoreCmd)
+          console.log('pg_restore output:', result.stdout)
+          if (result.stderr) {
+            console.warn('pg_restore warnings:', result.stderr)
+          }
+        } catch (restoreError: any) {
+          console.error('pg_restore failed:', restoreError.message)
+          console.error('stderr:', restoreError.stderr)
+          throw new Error(`Failed to restore database: ${restoreError.message}. Make sure pg_restore is available.`)
+        }
+      } else {
+        // Plain SQL dump - use psql
+        console.log('Detected plain SQL dump, using psql')
         const psqlCmd = `PGPASSWORD="${dbPassword}" psql -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -f "${sqlDump}"`
-        await execAsync(psqlCmd)
+        
+        try {
+          console.log('Running psql...')
+          const result = await execAsync(psqlCmd)
+          console.log('psql output:', result.stdout)
+          if (result.stderr) {
+            console.warn('psql warnings:', result.stderr)
+          }
+        } catch (psqlError: any) {
+          console.error('psql failed:', psqlError.message)
+          console.error('stderr:', psqlError.stderr)
+          throw new Error(`Failed to restore database: ${psqlError.message}`)
+        }
+      }
+      
+      console.log('Database restore completed successfully')
+      
+      // Verify restore by checking if data exists
+      try {
+        const bookingCount = await prisma.booking.count()
+        console.log(`Verification: Found ${bookingCount} bookings after restore`)
+        if (bookingCount === 0) {
+          console.warn('Warning: No bookings found after restore. The restore may have failed or the backup was empty.')
+        }
+      } catch (verifyError) {
+        console.error('Verification query failed:', verifyError)
+        // Don't fail the restore if verification fails
       }
     } else if (fs.existsSync(jsonDump)) {
       // Restore from JSON (fallback)
