@@ -16,6 +16,7 @@ const CACHE_TTL = 60000 // 1 minute cache
 
 /**
  * Get FX rates from database, with caching
+ * On server-side, queries database directly. On client-side, uses defaults.
  */
 async function getFxRatesFromDB(): Promise<Record<Currency, number>> {
   const now = Date.now()
@@ -25,30 +26,51 @@ async function getFxRatesFromDB(): Promise<Record<Currency, number>> {
     return fxRatesCache
   }
 
-
-  try {
-    // Only fetch from API if we're on the server (not in browser)
-    if (typeof window === 'undefined') {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      const res = await fetch(`${baseUrl}/api/settings/fx-rates`, {
-        cache: 'no-store',
-      })
+  // On server-side, query database directly
+  if (typeof window === 'undefined') {
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { prisma } = await import('@/lib/prisma')
       
-      if (res.ok) {
-        const rates = await res.json()
-        fxRatesCache = rates as Record<Currency, number>
-        cacheTimestamp = now
-        return fxRatesCache
+      const settings = await prisma.setting.findMany({
+        where: {
+          key: {
+            in: ['FX_RATE_GHS', 'FX_RATE_USD'],
+          },
+        },
+      })
+
+      const rates: Record<Currency, number> = {
+        USD: 1.0,
+        GHS: 0.08, // Default
       }
+
+      settings.forEach((setting) => {
+        if (setting.key === 'FX_RATE_GHS') {
+          const rate = parseFloat(setting.value)
+          if (!isNaN(rate) && rate > 0) {
+            rates.GHS = rate
+          }
+        } else if (setting.key === 'FX_RATE_USD') {
+          const rate = parseFloat(setting.value)
+          if (!isNaN(rate) && rate > 0) {
+            rates.USD = rate
+          }
+        }
+      })
+
+      fxRatesCache = rates
+      cacheTimestamp = now
+      return rates
+    } catch (error) {
+      console.error('Failed to fetch FX rates from database:', error)
+      // Return default rates on error
+      return DEFAULT_FX_RATES
     }
-    
-    // Fallback to default rates (for client-side or if API fails)
-    return DEFAULT_FX_RATES
-  } catch (error) {
-    console.error('Failed to fetch FX rates:', error)
-    // Return default rates on error
-    return DEFAULT_FX_RATES
   }
+  
+  // Fallback to default rates (for client-side)
+  return DEFAULT_FX_RATES
 }
 
 /**
