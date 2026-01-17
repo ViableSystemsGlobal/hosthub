@@ -75,8 +75,20 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
   const clearExisting = clearExistingParam === 'true' || clearExistingParam === true
 
   if (!file) {
+    console.error('Restore error: No file found in FormData')
     return NextResponse.json(
-      { error: 'No backup file provided' },
+      { error: 'No backup file provided. Please select a .tar.gz, .zip, or .json backup file.' },
+      { status: 400 }
+    )
+  }
+
+  console.log('Restoring archive file:', file.name, 'Size:', file.size, 'Type:', file.type)
+
+  // Validate file extension
+  const fileName = file.name.toLowerCase()
+  if (!fileName.endsWith('.tar.gz') && !fileName.endsWith('.zip') && !fileName.endsWith('.json')) {
+    return NextResponse.json(
+      { error: `Invalid file type: ${file.name}. Expected .tar.gz, .zip, or .json file.` },
       { status: 400 }
     )
   }
@@ -85,17 +97,25 @@ async function restoreFromArchive(request: NextRequest, providedFormData?: FormD
   await mkdir(tempDir, { recursive: true })
 
   try {
-    // Save uploaded file
-    const archivePath = join(tempDir, file.name)
+    // Save uploaded file - use a safe filename to avoid shell injection
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const archivePath = join(tempDir, safeFileName)
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     await writeFile(archivePath, buffer)
 
     // Extract archive
-    const extractCmd = file.name.endsWith('.zip')
-      ? `cd "${tempDir}" && unzip -q "${archivePath}" -d "${tempDir}"`
-      : `cd "${tempDir}" && tar -xzf "${archivePath}"`
+    const extractCmd = safeFileName.endsWith('.zip')
+      ? `cd "${tempDir}" && unzip -q "${safeFileName}" -d "${tempDir}"`
+      : safeFileName.endsWith('.tar.gz')
+      ? `cd "${tempDir}" && tar -xzf "${safeFileName}"`
+      : null
 
+    if (!extractCmd) {
+      throw new Error(`Unsupported archive format: ${file.name}`)
+    }
+
+    console.log('Extracting archive with command:', extractCmd)
     await execAsync(extractCmd)
 
     // Check for database.sql (pg_dump format) or database.json
