@@ -53,12 +53,13 @@ export async function GET(request: NextRequest) {
 
     try {
       // Step 1: Create database dump using pg_dump
-      // Set PGPASSWORD environment variable to avoid password prompt
-      const pgDumpCmd = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F c -f "${dumpFile}"`
+      // Use -F p (plain) format for compatibility with psql restore
+      // Previously used -F c (custom) but psql can't read custom format
+      const pgDumpCmd = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F p -f "${dumpFile}"`
       
       try {
         await execAsync(pgDumpCmd)
-        console.log('Database dump created successfully')
+        console.log('Database dump created successfully (plain SQL format)')
       } catch (pgDumpError: any) {
         // If pg_dump is not available, fall back to JSON export
         console.warn('pg_dump not available, falling back to JSON export:', pgDumpError.message)
