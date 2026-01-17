@@ -543,6 +543,13 @@ export async function generateOccupancyReport(
     },
   })
 
+  // Get total number of active properties for occupancy calculation
+  const propertyWhere: any = { status: 'active' }
+  if (filters.propertyIds && filters.propertyIds.length > 0) {
+    propertyWhere.id = { in: filters.propertyIds }
+  }
+  const totalProperties = await prisma.property.count({ where: propertyWhere })
+
   // Calculate occupancy by month or property
   const groupedData: Record<string, any> = {}
 
@@ -556,11 +563,13 @@ export async function generateOccupancyReport(
         key,
         nights: 0,
         bookings: 0,
+        propertyIds: new Set<string>(),
       }
     }
 
     groupedData[key].nights += booking.nights
     groupedData[key].bookings += 1
+    groupedData[key].propertyIds.add(booking.propertyId)
   })
 
   // Calculate days in period for occupancy percentage
@@ -573,9 +582,22 @@ export async function generateOccupancyReport(
     : ['Property', 'Booked Nights', 'Bookings', 'Occupancy %']
 
   const rows = Object.values(groupedData).map((group: any) => {
-    // Calculate occupancy percentage (simplified - assumes 1 property per period)
-    const daysInPeriod = groupBy === 'month' ? 30 : totalDays
-    const occupancyPercent = daysInPeriod > 0 ? (group.nights / daysInPeriod) * 100 : 0
+    let occupancyPercent = 0
+    
+    if (groupBy === 'month') {
+      // For month grouping: calculate days in that specific month, multiply by number of properties
+      const [year, month] = group.key.split('-').map(Number)
+      const daysInMonth = new Date(year, month, 0).getDate()
+      // Use total properties (or filtered properties count)
+      const availableNights = daysInMonth * totalProperties
+      occupancyPercent = availableNights > 0 ? (group.nights / availableNights) * 100 : 0
+    } else {
+      // For property grouping: nights / days in period (single property)
+      occupancyPercent = totalDays > 0 ? (group.nights / totalDays) * 100 : 0
+    }
+    
+    // Cap at 100% (can't be more than fully occupied)
+    occupancyPercent = Math.min(100, occupancyPercent)
 
     return [
       group.key,
