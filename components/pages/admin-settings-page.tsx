@@ -1308,44 +1308,98 @@ export function AdminSettingsPage() {
                       <Input
                         id="backupFile"
                         type="file"
-                        accept=".json"
+                        accept=".json,.tar.gz,.zip"
                         disabled={restoring}
                         onChange={async (e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
 
                           try {
-                            const text = await file.text()
-                            const backup = JSON.parse(text)
+                            const fileName = file.name.toLowerCase()
+                            const isArchive = fileName.endsWith('.tar.gz') || fileName.endsWith('.zip')
+                            const isJSON = fileName.endsWith('.json')
 
-                            if (!backup.data || !backup.version) {
-                              toast.error('Invalid backup file', 'The selected file is not a valid backup')
-                              return
-                            }
-
-                            const confirmed = confirm(
-                              `Are you sure you want to restore this backup?\n\n` +
-                              `Created: ${backup.createdAt || 'Unknown'}\n` +
-                              `Version: ${backup.version}\n\n` +
-                              `This will replace ALL existing data. This action cannot be undone!\n\n` +
-                              `Do you want to clear existing data before restoring?`
-                            )
-
-                            if (!confirmed) {
+                            if (!isArchive && !isJSON) {
+                              toast.error('Invalid backup file', 'Please select a .json, .tar.gz, or .zip backup file')
                               e.target.value = ''
                               return
                             }
 
-                            const clearExisting = confirm(
-                              'Clear all existing data before restoring? (Recommended for clean restore)'
-                            )
+                            let confirmed = false
+                            let clearExisting = false
+
+                            if (isJSON) {
+                              // For JSON files, parse and show details
+                              const text = await file.text()
+                              const backup = JSON.parse(text)
+
+                              if (!backup.data || !backup.version) {
+                                toast.error('Invalid backup file', 'The selected file is not a valid backup')
+                                e.target.value = ''
+                                return
+                              }
+
+                              confirmed = confirm(
+                                `Are you sure you want to restore this backup?\n\n` +
+                                `Created: ${backup.createdAt || 'Unknown'}\n` +
+                                `Version: ${backup.version}\n\n` +
+                                `This will replace ALL existing data. This action cannot be undone!\n\n` +
+                                `Do you want to clear existing data before restoring?`
+                              )
+
+                              if (!confirmed) {
+                                e.target.value = ''
+                                return
+                              }
+
+                              clearExisting = confirm(
+                                'Clear all existing data before restoring? (Recommended for clean restore)'
+                              )
+                            } else {
+                              // For archive files, just confirm
+                              confirmed = confirm(
+                                `Are you sure you want to restore this backup?\n\n` +
+                                `File: ${file.name}\n\n` +
+                                `This will replace ALL existing data. This action cannot be undone!\n\n` +
+                                `Do you want to clear existing data before restoring?`
+                              )
+
+                              if (!confirmed) {
+                                e.target.value = ''
+                                return
+                              }
+
+                              clearExisting = confirm(
+                                'Clear all existing data before restoring? (Recommended for clean restore)'
+                              )
+                            }
 
                             setRestoring(true)
-                            const res = await fetch('/api/admin/restore', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ backup, clearExisting }),
-                            })
+
+                            let res: Response
+                            if (isArchive) {
+                              // Send archive as file upload
+                              const formData = new FormData()
+                              formData.append('file', file)
+                              if (clearExisting) {
+                                formData.append('clearExisting', 'true')
+                              }
+
+                              res = await fetch('/api/admin/restore', {
+                                method: 'POST',
+                                body: formData,
+                              })
+                            } else {
+                              // Send JSON in body (backward compatibility)
+                              const text = await file.text()
+                              const backup = JSON.parse(text)
+
+                              res = await fetch('/api/admin/restore', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ backup, clearExisting }),
+                              })
+                            }
 
                             const data = await res.json()
 
@@ -1353,7 +1407,7 @@ export function AdminSettingsPage() {
                               throw new Error(data.error || 'Failed to restore backup')
                             }
 
-                            toast.success('Backup restored', 'Your data has been restored successfully')
+                            toast.success('Backup restored', data.message || 'Your data has been restored successfully')
                             // Reset file input
                             e.target.value = ''
                           } catch (error: any) {

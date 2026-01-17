@@ -58,6 +58,8 @@ export async function POST(request: NextRequest) {
 async function restoreFromArchive(request: NextRequest) {
   const formData = await request.formData()
   const file = formData.get('file') as File | null
+  const clearExistingParam = formData.get('clearExisting')
+  const clearExisting = clearExistingParam === 'true' || clearExistingParam === true
 
   if (!file) {
     return NextResponse.json(
@@ -117,7 +119,7 @@ async function restoreFromArchive(request: NextRequest) {
       // Restore from JSON (fallback)
       const jsonContent = await readFile(jsonDump, 'utf-8')
       const backup = JSON.parse(jsonContent)
-      await restoreDatabaseData(backup, false)
+      await restoreDatabaseData(backup, clearExisting)
     } else {
       throw new Error('No database dump found in archive (expected database.sql or database.json)')
     }
