@@ -1313,13 +1313,18 @@ export function AdminSettingsPage() {
                           const file = e.target.files?.[0]
                           if (!file) return
 
+                          console.log('Restore: File selected:', file.name, 'Type:', file.type, 'Size:', file.size)
+
                           try {
                             const fileName = file.name.toLowerCase()
-                            const isArchive = fileName.endsWith('.tar.gz') || fileName.endsWith('.zip')
+                            const isArchive = fileName.endsWith('.tar.gz') || fileName.endsWith('.zip') || fileName.endsWith('.gz')
                             const isJSON = fileName.endsWith('.json')
+
+                            console.log('Restore: isArchive:', isArchive, 'isJSON:', isJSON)
 
                             if (!isArchive && !isJSON) {
                               toast.error('Invalid backup file', 'Please select a .json, .tar.gz, or .zip backup file')
+                              console.error('Invalid file type:', fileName)
                               e.target.value = ''
                               return
                             }
@@ -1374,6 +1379,7 @@ export function AdminSettingsPage() {
                             }
 
                             setRestoring(true)
+                            console.log('Restore: Starting restore, isArchive:', isArchive, 'clearExisting:', clearExisting)
 
                             let res: Response
                             if (isArchive) {
@@ -1384,23 +1390,28 @@ export function AdminSettingsPage() {
                                 formData.append('clearExisting', 'true')
                               }
 
+                              console.log('Restore: Sending archive via FormData')
                               res = await fetch('/api/admin/restore', {
                                 method: 'POST',
                                 body: formData,
                               })
+                              console.log('Restore: Archive response status:', res.status)
                             } else {
                               // Send JSON in body (backward compatibility)
                               const text = await file.text()
                               const backup = JSON.parse(text)
 
+                              console.log('Restore: Sending JSON backup')
                               res = await fetch('/api/admin/restore', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ backup, clearExisting }),
                               })
+                              console.log('Restore: JSON response status:', res.status)
                             }
 
                             const data = await res.json()
+                            console.log('Restore: Response data:', data)
 
                             if (!res.ok) {
                               throw new Error(data.error || 'Failed to restore backup')

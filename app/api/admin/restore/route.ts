@@ -22,10 +22,16 @@ interface BackupFile {
  * Supports both JSON format (v1.0, v1.1) and archive format (v2.0 - tar.gz/zip)
  */
 export async function POST(request: NextRequest) {
+  console.log('=== RESTORE API CALLED ===')
+  console.log('Request URL:', request.url)
+  console.log('Request method:', request.method)
+  
   try {
     await requireAdmin(request)
+    console.log('Admin authentication passed')
   } catch (error: unknown) {
     const err = error as { message?: string; status?: number }
+    console.error('Admin authentication failed:', err.message)
     return NextResponse.json(
       { error: err.message || 'Unauthorized' },
       { status: err.status || 401 }
