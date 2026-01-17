@@ -1308,7 +1308,6 @@ export function AdminSettingsPage() {
                       <Input
                         id="backupFile"
                         type="file"
-                        accept=".json,.tar.gz,.zip"
                         disabled={restoring}
                         onChange={async (e) => {
                           const file = e.target.files?.[0]
