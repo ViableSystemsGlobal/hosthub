@@ -60,6 +60,7 @@ export function AdminBookingsPage() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [totalRevenue, setTotalRevenue] = useState(0)
+  const [upcomingRevenue, setUpcomingRevenue] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
   const [filters, setFilters] = useState({
@@ -78,14 +79,33 @@ export function AdminBookingsPage() {
     const calculateRevenue = async () => {
       if (!Array.isArray(allBookings)) {
         setTotalRevenue(0)
+        setUpcomingRevenue(0)
         return
       }
-      let sum = 0
+      
+      // Calculate completed revenue
+      let completedSum = 0
       for (const b of allBookings.filter(b => b.status === 'COMPLETED')) {
         const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
-        sum += await convertCurrency(gross, b.currency, 'GHS')
+        completedSum += await convertCurrency(gross, b.currency, 'GHS')
       }
-      setTotalRevenue(sum)
+      setTotalRevenue(completedSum)
+      
+      // Calculate upcoming revenue for this month
+      const now = new Date()
+      const monthStart = startOfMonth(now)
+      const monthEnd = endOfMonth(now)
+      
+      let upcomingSum = 0
+      for (const b of allBookings.filter(b => {
+        if (b.status !== 'UPCOMING' && b.status !== 'CONFIRMED') return false
+        const checkIn = new Date(b.checkInDate)
+        return checkIn >= monthStart && checkIn <= monthEnd
+      })) {
+        const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
+        upcomingSum += await convertCurrency(gross, b.currency, 'GHS')
+      }
+      setUpcomingRevenue(upcomingSum)
     }
     calculateRevenue()
   }, [allBookings])
@@ -416,11 +436,22 @@ export function AdminBookingsPage() {
           value={upcomingBookings}
           icon={<Calendar className="h-4 w-4 text-muted-foreground" />}
         />
-        <MetricCard
-          title="Total Revenue"
-          value={formatCurrency(totalRevenue, Currency.GHS)}
-          icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-        />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalRevenue, Currency.GHS)}</div>
+            <p className="text-xs text-muted-foreground">Completed bookings</p>
+            {upcomingRevenue > 0 && (
+              <div className="mt-2 pt-2 border-t">
+                <div className="text-sm font-medium text-green-600">{formatCurrency(upcomingRevenue, Currency.GHS)}</div>
+                <p className="text-xs text-muted-foreground">Upcoming this month</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
