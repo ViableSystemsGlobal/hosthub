@@ -423,6 +423,35 @@ export async function exportAllReportsToPDF(
     
     console.log('Final receipts count for PDF:', receipts.length)
 
+    // Fetch statements for all owners for the period
+    let statements: Array<any> = []
+    try {
+      console.log('Fetching statements for period:', dateFrom, 'to', dateTo)
+      const statementsRes = await fetch(`${baseUrl}/api/statements/preview-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          periodStart: dateFrom,
+          periodEnd: dateTo,
+          displayCurrency: 'GHS',
+        }),
+      })
+      console.log('Statements API response status:', statementsRes.status)
+      
+      if (statementsRes.ok) {
+        statements = await statementsRes.json()
+        console.log('Fetched statements count:', statements.length)
+      } else {
+        const errorText = await statementsRes.text()
+        console.error('Failed to fetch statements, status:', statementsRes.status, 'error:', errorText)
+      }
+    } catch (error) {
+      console.error('Failed to fetch statements:', error)
+    }
+    
+    console.log('Final statements count for PDF:', statements.length)
+
     // Generate PDF blob
     const blob = await pdf(
       <AllReportsPDF
@@ -433,6 +462,7 @@ export async function exportAllReportsToPDF(
         logoUrl={logoUrl}
         themeColor={themeColor}
         receipts={receipts}
+        statements={statements}
       />
     ).toBlob()
 

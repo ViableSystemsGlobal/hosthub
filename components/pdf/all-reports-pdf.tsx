@@ -27,6 +27,36 @@ type Receipt = {
   receiptUrl: string
 }
 
+type StatementPreview = {
+  owner: {
+    id: string
+    name: string
+    email: string
+  }
+  periodStart: string
+  periodEnd: string
+  displayCurrency: string
+  grossRevenue: number
+  companyRevenue: number
+  ownerRevenue: number
+  commissionAmount: number
+  companyCommission: number
+  ownerCommission: number
+  totalExpenses: number
+  companyPaidExpenses: number
+  ownerPaidExpenses: number
+  netToOwner: number
+  openingBalance: number
+  closingBalance: number
+  statementLines: Array<{
+    type: string
+    description: string
+    amountInDisplayCurrency: number
+  }>
+  bookingsCount: number
+  expensesCount: number
+}
+
 interface AllReportsPDFProps {
   reportsByProperty: Record<string, PropertyReports>
   dateFrom?: string
@@ -35,6 +65,7 @@ interface AllReportsPDFProps {
   logoUrl?: string | null
   themeColor?: string
   receipts?: Receipt[]
+  statements?: StatementPreview[]
 }
 
 // Base styles (colors will be overridden dynamically)
@@ -210,6 +241,115 @@ const createStyles = (themeColor: string = '#f97316') => StyleSheet.create({
     marginBottom: 20,
     objectFit: 'contain',
   },
+  // Statement styles
+  statementPage: {
+    padding: 30,
+    fontSize: 10,
+    fontFamily: 'Helvetica',
+  },
+  statementHeader: {
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottom: `2 solid ${themeColor}`,
+  },
+  statementTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: themeColor,
+    marginBottom: 5,
+  },
+  statementOwner: {
+    fontSize: 14,
+    fontWeight: 700,
+    marginBottom: 3,
+  },
+  statementPeriod: {
+    fontSize: 10,
+    color: '#6b7280',
+  },
+  statementSection: {
+    marginBottom: 15,
+  },
+  statementSectionTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    marginBottom: 8,
+    color: '#374151',
+  },
+  statementTable: {
+    border: '1 solid #e5e7eb',
+    borderRadius: 2,
+  },
+  statementTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    minHeight: 25,
+  },
+  statementTableHeaderCell: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontWeight: 700,
+    fontSize: 9,
+    borderRight: '1 solid #e5e7eb',
+  },
+  statementTableRow: {
+    flexDirection: 'row',
+    borderTop: '1 solid #e5e7eb',
+    minHeight: 22,
+  },
+  statementTableCell: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    fontSize: 9,
+    borderRight: '1 solid #e5e7eb',
+  },
+  statementSummary: {
+    marginTop: 15,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    border: '1 solid #e5e7eb',
+    borderRadius: 4,
+  },
+  statementSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  statementSummaryLabel: {
+    fontSize: 10,
+  },
+  statementSummaryValue: {
+    fontSize: 10,
+    fontWeight: 700,
+  },
+  statementTotal: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: `2 solid ${themeColor}`,
+  },
+  statementTotalLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  statementTotalValue: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: themeColor,
+  },
+  statementSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    paddingLeft: 15,
+  },
+  statementSubLabel: {
+    fontSize: 9,
+    color: '#6b7280',
+  },
+  statementSubValue: {
+    fontSize: 9,
+    color: '#6b7280',
+  },
 })
 
 const normalizeHeaders = (rows: any[], headers?: string[]) => {
@@ -278,7 +418,7 @@ const calculateColumnWidths = (headers: string[], rows: any[], pageWidth: number
   return widths.map(w => Math.floor(w * scale))
 }
 
-export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt, logoUrl, themeColor = '#f97316', receipts = [] }: AllReportsPDFProps) {
+export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt, logoUrl, themeColor = '#f97316', receipts = [], statements = [] }: AllReportsPDFProps) {
   const dateLabel = [dateFrom, dateTo].filter(Boolean).join(' to ')
   const properties = Object.values(reportsByProperty || {})
   
@@ -407,6 +547,93 @@ export function AllReportsPDF({ reportsByProperty, dateFrom, dateTo, generatedAt
       </Page>
       
       {propertyPages}
+      
+      {/* Statements Section - After All Properties */}
+      {statements && statements.length > 0 && statements.map((statement, stmtIdx) => (
+        <Page key={`statement-${statement.owner.id}`} size="A4" style={styles.statementPage} wrap>
+          <View style={styles.statementHeader}>
+            {logoUrl && (
+              <Image src={logoUrl} style={styles.logoHeader} />
+            )}
+            <Text style={styles.statementTitle}>Statement of Account</Text>
+            <Text style={styles.statementOwner}>{statement.owner.name}</Text>
+            <Text style={styles.statementPeriod}>
+              Period: {format(new Date(statement.periodStart), 'MMM dd, yyyy')} to {format(new Date(statement.periodEnd), 'MMM dd, yyyy')}
+            </Text>
+          </View>
+
+          {/* Transactions Table */}
+          {statement.statementLines && statement.statementLines.length > 0 && (
+            <View style={styles.statementSection}>
+              <Text style={styles.statementSectionTitle}>Transactions</Text>
+              <View style={styles.statementTable}>
+                <View style={styles.statementTableHeader}>
+                  <View style={[styles.statementTableHeaderCell, { flex: 3 }]}>
+                    <Text>Description</Text>
+                  </View>
+                  <View style={[styles.statementTableHeaderCell, { flex: 1, borderRight: 0 }]}>
+                    <Text>Amount</Text>
+                  </View>
+                </View>
+                {statement.statementLines.slice(0, 50).map((line, lineIdx) => (
+                  <View key={lineIdx} style={styles.statementTableRow}>
+                    <View style={[styles.statementTableCell, { flex: 3 }]}>
+                      <Text>{line.description}</Text>
+                    </View>
+                    <View style={[styles.statementTableCell, { flex: 1, borderRight: 0 }]}>
+                      <Text>{formatCurrency(line.amountInDisplayCurrency, statement.displayCurrency)}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Summary */}
+          <View style={styles.statementSummary}>
+            <View style={styles.statementSummaryRow}>
+              <Text style={styles.statementSummaryLabel}>Revenue (Total):</Text>
+              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.grossRevenue, statement.displayCurrency)}</Text>
+            </View>
+            {(statement.companyRevenue > 0 || statement.ownerRevenue > 0) && (
+              <>
+                <View style={styles.statementSubRow}>
+                  <Text style={styles.statementSubLabel}>↳ Received by Company:</Text>
+                  <Text style={styles.statementSubValue}>{formatCurrency(statement.companyRevenue, statement.displayCurrency)}</Text>
+                </View>
+                <View style={styles.statementSubRow}>
+                  <Text style={styles.statementSubLabel}>↳ Received by Owner:</Text>
+                  <Text style={styles.statementSubValue}>{formatCurrency(statement.ownerRevenue, statement.displayCurrency)}</Text>
+                </View>
+              </>
+            )}
+            <View style={styles.statementSummaryRow}>
+              <Text style={styles.statementSummaryLabel}>Commission (Total):</Text>
+              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.commissionAmount, statement.displayCurrency)}</Text>
+            </View>
+            <View style={styles.statementSummaryRow}>
+              <Text style={styles.statementSummaryLabel}>Gross (After Commission):</Text>
+              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.grossRevenue - statement.commissionAmount, statement.displayCurrency)}</Text>
+            </View>
+            <View style={styles.statementSummaryRow}>
+              <Text style={styles.statementSummaryLabel}>Total Expenses:</Text>
+              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.totalExpenses, statement.displayCurrency)}</Text>
+            </View>
+            <View style={[styles.statementSummaryRow, styles.statementTotal]}>
+              <Text style={styles.statementTotalLabel}>Net to Owner:</Text>
+              <Text style={styles.statementTotalValue}>{formatCurrency(statement.netToOwner, statement.displayCurrency)}</Text>
+            </View>
+            <View style={styles.statementSummaryRow}>
+              <Text style={styles.statementSummaryLabel}>Opening Balance:</Text>
+              <Text style={styles.statementSummaryValue}>{formatCurrency(statement.openingBalance, statement.displayCurrency)}</Text>
+            </View>
+            <View style={[styles.statementSummaryRow, styles.statementTotal]}>
+              <Text style={styles.statementTotalLabel}>Closing Balance:</Text>
+              <Text style={styles.statementTotalValue}>{formatCurrency(statement.closingBalance, statement.displayCurrency)}</Text>
+            </View>
+          </View>
+        </Page>
+      ))}
       
       {/* Receipts Page - After All Properties */}
       {receipts && receipts.length > 0 ? (
