@@ -52,9 +52,14 @@ export async function GET(request: NextRequest) {
     const backupArchive = join(tempDir, 'backup.tar.gz')
 
     try {
-      // Step 1: Create database dump using pg_dump
+      // Step 1: Copy uploads directory to temp first (needed for both pg_dump and JSON fallback)
+      const tempUploads = join(tempDir, 'uploads')
+      await execAsync(`cp -r "${uploadsDir}" "${tempUploads}" 2>/dev/null || mkdir -p "${tempUploads}"`)
+      console.log('Uploads directory copied')
+
+      // Step 2: Create database dump using pg_dump
       // Use -F p (plain) format for compatibility with psql restore
-      // Previously used -F c (custom) but psql can't read custom format
+      let usedJsonFallback = false
       const pgDumpCmd = `PGPASSWORD="${dbPassword}" pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -F p -f "${dumpFile}"`
       
       try {
@@ -63,6 +68,7 @@ export async function GET(request: NextRequest) {
       } catch (pgDumpError: any) {
         // If pg_dump is not available, fall back to JSON export
         console.warn('pg_dump not available, falling back to JSON export:', pgDumpError.message)
+        usedJsonFallback = true
         
         // Export as JSON instead
         const backup = {
@@ -129,25 +135,23 @@ export async function GET(request: NextRequest) {
 
         const jsonFile = join(tempDir, 'database.json')
         await writeFile(jsonFile, JSON.stringify(backup, null, 2))
-        
-        // Create tar.gz with JSON + uploads
-        const tarCmd = `cd "${tempDir}" && tar -czf "${backupArchive}" database.json uploads/ 2>/dev/null || (cd "${tempDir}" && zip -r "${backupArchive.replace('.tar.gz', '.zip')}" database.json uploads/ 2>/dev/null || echo "Archive tools not available")`
-        await execAsync(tarCmd)
+        console.log('JSON backup created at:', jsonFile)
       }
-
-      // Step 2: Copy uploads directory to temp
-      const tempUploads = join(tempDir, 'uploads')
-      await execAsync(`cp -r "${uploadsDir}" "${tempUploads}" 2>/dev/null || echo "Uploads directory not found"`)
 
       // Step 3: Create archive (tar.gz or zip)
       let archivePath = backupArchive
       let archiveType = 'application/gzip'
       let archiveExt = 'tar.gz'
 
+      // Determine which database file to archive (sql or json)
+      const dbFile = usedJsonFallback ? 'database.json' : 'database.sql'
+      console.log('Creating archive with:', dbFile)
+
       // Try tar.gz first, fall back to zip
-      const createArchive = `cd "${tempDir}" && tar -czf "${backupArchive}" database.sql uploads/ 2>/dev/null || (cd "${tempDir}" && zip -r "${backupArchive.replace('.tar.gz', '.zip')}" database.sql uploads/ 2>/dev/null && echo "zip") || echo "failed"`
+      const createArchive = `cd "${tempDir}" && tar -czf "${backupArchive}" ${dbFile} uploads/ 2>/dev/null || (cd "${tempDir}" && zip -r "${backupArchive.replace('.tar.gz', '.zip')}" ${dbFile} uploads/ 2>/dev/null && echo "zip") || echo "failed"`
       
       const archiveResult = await execAsync(createArchive)
+      console.log('Archive result:', archiveResult.stdout)
       
       if (archiveResult.stdout.includes('zip') || !require('fs').existsSync(backupArchive)) {
         archivePath = backupArchive.replace('.tar.gz', '.zip')
@@ -158,6 +162,8 @@ export async function GET(request: NextRequest) {
       if (!fs.existsSync(archivePath)) {
         throw new Error('Failed to create archive. Please ensure tar or zip is available.')
       }
+      
+      console.log('Archive created at:', archivePath)
 
       // Step 4: Read archive and return as download
       const archiveBuffer = await readFile(archivePath)
