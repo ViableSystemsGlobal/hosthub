@@ -8,35 +8,19 @@ import { formatCurrency, Currency, getFxRate } from '@/lib/currency'
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 /**
- * Convert USD to GHS using historical rates from bookings
- * Uses each booking's fxRateToBase to determine the historical rate
+ * Convert USD to GHS using CURRENT exchange rate for consistency
+ * This ensures Total Revenue (USD) and Total Revenue (GHS) are equivalent values
+ * at the same exchange rate, making reports easier to understand
  */
-async function convertUSDToGHSHistorical(
-  bookings: Array<{ currency: Currency; fxRateToBase: number; totalPayoutInBase: number }>
+async function convertUSDToGHSConsistent(
+  totalPayoutInBase: number
 ): Promise<number> {
-  if (bookings.length === 0) return 0
+  if (totalPayoutInBase === 0) return 0
   
-  // Get current USD→GHS rate for USD bookings (limitation: we don't store historical USD→GHS rates)
+  // Use current USD→GHS rate for all conversions
   const currentUsdToGhs = await getFxRate('USD', 'GHS')
   
-  let totalGHS = 0
-  
-  for (const booking of bookings) {
-    const usdAmount = booking.totalPayoutInBase || 0
-    
-    if (booking.currency === 'GHS') {
-      // If booking was in GHS, fxRateToBase is GHS→USD rate
-      // To get USD→GHS, we invert it: 1 / fxRateToBase
-      const usdToGhsRate = booking.fxRateToBase > 0 ? 1 / booking.fxRateToBase : 0
-      totalGHS += usdAmount * usdToGhsRate
-    } else if (booking.currency === 'USD') {
-      // If booking was in USD, fxRateToBase should be 1.0
-      // We use current rate as fallback (limitation: no historical USD→GHS rate stored)
-      totalGHS += usdAmount * currentUsdToGhs
-    }
-  }
-  
-  return totalGHS
+  return totalPayoutInBase * currentUsdToGhs
 }
 
 export interface ReportFilters {
@@ -361,13 +345,9 @@ export async function generateRevenueReport(
     Object.values(groupedData).map(async (group: any) => {
       // Convert revenue from USD to GHS using historical rates for this group
       const groupBookings = bookingsByGroup[group.key] || []
-      const revenueInGHS = await convertUSDToGHSHistorical(
-        groupBookings.map(b => ({
-          currency: b.currency,
-          fxRateToBase: b.fxRateToBase || 1.0,
-          totalPayoutInBase: b.totalPayoutInBase || 0,
-        }))
-      )
+      // Sum totalPayoutInBase for this group and convert to GHS
+      const groupTotalUSD = groupBookings.reduce((sum, b) => sum + (b.totalPayoutInBase || 0), 0)
+      const revenueInGHS = await convertUSDToGHSConsistent(groupTotalUSD)
       const avgRevenue = group.bookings > 0 ? revenueInGHS / group.bookings : 0
       
       if (groupBy === 'none') {
@@ -392,14 +372,8 @@ export async function generateRevenueReport(
   const totalBookings = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.bookings, 0)
   const totalNights = Object.values(groupedData).reduce((sum: number, g: any) => sum + g.nights, 0)
 
-  // Convert total revenue from USD to GHS using historical rates
-  const totalRevenueInGHS = await convertUSDToGHSHistorical(
-    bookings.map(b => ({
-      currency: b.currency,
-      fxRateToBase: b.fxRateToBase || 1.0,
-      totalPayoutInBase: b.totalPayoutInBase || 0,
-    }))
-  )
+  // Convert total revenue from USD to GHS using current rate for consistency
+  const totalRevenueInGHS = await convertUSDToGHSConsistent(totalRevenueUSD)
 
   // Format currency totals for display
   const currencyTotals = Object.entries(totalsByOriginalCurrency)
