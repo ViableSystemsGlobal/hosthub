@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Edit, Calendar, DollarSign, CalendarCheck, TrendingUp, CalendarDays, CheckSquare, Square, Trash2, Download, Mail, Loader2, Upload } from 'lucide-react'
-import { formatCurrency, convertCurrency } from '@/lib/currency'
+import { formatCurrency, convertCurrency, getFxRate } from '@/lib/currency'
 import { BookingSource, BookingStatus, Currency } from '@prisma/client'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
@@ -83,11 +83,15 @@ export function AdminBookingsPage() {
         return
       }
       
-      // Calculate completed revenue
+      // Get current USD→GHS rate for consistent conversion
+      const usdToGhs = await getFxRate('USD', 'GHS')
+      
+      // Calculate completed revenue using totalPayoutInBase (net payout in USD)
+      // This matches the Revenue report calculation
       let completedSum = 0
       for (const b of allBookings.filter(b => b.status === 'COMPLETED')) {
-        const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
-        completedSum += await convertCurrency(gross, b.currency, 'GHS')
+        const usdAmount = (b as any).totalPayoutInBase || 0
+        completedSum += usdAmount * usdToGhs
       }
       setTotalRevenue(completedSum)
       
@@ -102,8 +106,8 @@ export function AdminBookingsPage() {
         const checkIn = new Date(b.checkInDate)
         return checkIn >= monthStart && checkIn <= monthEnd
       })) {
-        const gross = (b as any).baseAmount + ((b as any).cleaningFee || 0)
-        upcomingSum += await convertCurrency(gross, b.currency, 'GHS')
+        const usdAmount = (b as any).totalPayoutInBase || 0
+        upcomingSum += usdAmount * usdToGhs
       }
       setUpcomingRevenue(upcomingSum)
     }

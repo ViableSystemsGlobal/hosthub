@@ -5,28 +5,13 @@ import { convertCurrency, getFxRate } from '@/lib/currency'
 import { Currency } from '@prisma/client'
 
 /**
- * Convert booking amount from USD base to GHS using historical rates
- * Matches the Revenue report calculation exactly
+ * Convert USD amount to GHS using CURRENT exchange rate
+ * This matches the Revenue report calculation exactly for consistency
  */
-async function convertToGHSHistorical(booking: {
-  currency: Currency
-  fxRateToBase: number
-  totalPayoutInBase: number
-}): Promise<number> {
-  const usdAmount = booking.totalPayoutInBase || 0
-  
-  if (booking.currency === 'GHS') {
-    // If booking was in GHS, fxRateToBase is GHS→USD rate
-    // To get USD→GHS, we invert it: 1 / fxRateToBase
-    const usdToGhsRate = booking.fxRateToBase > 0 ? 1 / booking.fxRateToBase : 0
-    return usdAmount * usdToGhsRate
-  } else if (booking.currency === 'USD') {
-    // If booking was in USD, use current rate as fallback
-    const currentUsdToGhs = await getFxRate('USD', 'GHS')
-    return usdAmount * currentUsdToGhs
-  }
-  
-  return usdAmount
+async function convertToGHSConsistent(usdAmount: number): Promise<number> {
+  if (usdAmount === 0) return 0
+  const currentUsdToGhs = await getFxRate('USD', 'GHS')
+  return usdAmount * currentUsdToGhs
 }
 
 /**
@@ -94,34 +79,16 @@ export async function POST(request: NextRequest) {
       const companyBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'COMPANY')
       const ownerBookings = bookings.filter(b => (b as any).paymentReceivedBy === 'OWNER')
 
-      for (const booking of bookings) {
-        // Use totalPayoutInBase and historical rates to match Revenue report exactly
-        const amountInGHS = await convertToGHSHistorical({
-          currency: booking.currency as Currency,
-          fxRateToBase: booking.fxRateToBase || 1.0,
-          totalPayoutInBase: booking.totalPayoutInBase || 0,
-        })
-        revenue += amountInGHS
-      }
+      // Calculate total revenue using current FX rate for consistency with Revenue report
+      const totalRevenueUSD = bookings.reduce((sum, b) => sum + (b.totalPayoutInBase || 0), 0)
+      revenue = await convertToGHSConsistent(totalRevenueUSD)
 
       // Calculate company and owner revenue separately
-      for (const booking of companyBookings) {
-        const amountInGHS = await convertToGHSHistorical({
-          currency: booking.currency as Currency,
-          fxRateToBase: booking.fxRateToBase || 1.0,
-          totalPayoutInBase: booking.totalPayoutInBase || 0,
-        })
-        companyRevenue += amountInGHS
-      }
+      const companyRevenueUSD = companyBookings.reduce((sum, b) => sum + (b.totalPayoutInBase || 0), 0)
+      companyRevenue = await convertToGHSConsistent(companyRevenueUSD)
 
-      for (const booking of ownerBookings) {
-        const amountInGHS = await convertToGHSHistorical({
-          currency: booking.currency as Currency,
-          fxRateToBase: booking.fxRateToBase || 1.0,
-          totalPayoutInBase: booking.totalPayoutInBase || 0,
-        })
-        ownerRevenue += amountInGHS
-      }
+      const ownerRevenueUSD = ownerBookings.reduce((sum, b) => sum + (b.totalPayoutInBase || 0), 0)
+      ownerRevenue = await convertToGHSConsistent(ownerRevenueUSD)
 
       // Calculate expenses
       let companyPaidExpenses = 0
@@ -143,7 +110,10 @@ export async function POST(request: NextRequest) {
       
       const totalExpenses = companyPaidExpenses + ownerPaidExpenses
 
-      // Calculate commission using historical rates (same as Revenue report)
+      // Calculate commission using current FX rate (same as Revenue report)
+      // Get FX rate once for efficiency
+      const usdToGhs = await getFxRate('USD', 'GHS')
+      
       let commissionAmount = 0
       let companyCommission = 0
       let ownerCommission = 0
@@ -151,11 +121,7 @@ export async function POST(request: NextRequest) {
       for (const booking of bookings) {
         const property = booking.Property
         const commissionRate = property.defaultCommissionRate || 0.15
-        const bookingInGHS = await convertToGHSHistorical({
-          currency: booking.currency as Currency,
-          fxRateToBase: booking.fxRateToBase || 1.0,
-          totalPayoutInBase: booking.totalPayoutInBase || 0,
-        })
+        const bookingInGHS = (booking.totalPayoutInBase || 0) * usdToGhs
         const commission = bookingInGHS * commissionRate
         commissionAmount += commission
 
@@ -179,13 +145,9 @@ export async function POST(request: NextRequest) {
       // Build statement lines
       const statementLines: any[] = []
 
-      // Add booking lines using historical rates (same as Revenue report)
+      // Add booking lines using current FX rate (same as Revenue report)
       for (const booking of bookings) {
-        const amountInGHS = await convertToGHSHistorical({
-          currency: booking.currency as Currency,
-          fxRateToBase: booking.fxRateToBase || 1.0,
-          totalPayoutInBase: booking.totalPayoutInBase || 0,
-        })
+        const amountInGHS = (booking.totalPayoutInBase || 0) * usdToGhs
         
         statementLines.push({
           type: 'BOOKING',
