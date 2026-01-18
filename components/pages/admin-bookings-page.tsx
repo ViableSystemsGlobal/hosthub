@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Edit, Calendar, DollarSign, CalendarCheck, TrendingUp, CalendarDays, CheckSquare, Square, Trash2, Download, Mail, Loader2, Upload } from 'lucide-react'
-import { formatCurrency, convertCurrency, getFxRate } from '@/lib/currency'
+import { formatCurrency, convertCurrency } from '@/lib/currency'
 import { BookingSource, BookingStatus, Currency } from '@prisma/client'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { MetricCard } from '@/components/ui/metric-card'
@@ -83,8 +83,20 @@ export function AdminBookingsPage() {
         return
       }
       
-      // Get current USD→GHS rate for consistent conversion
-      const usdToGhs = await getFxRate('USD', 'GHS')
+      // Fetch FX rate from API (getFxRate uses default rates on client-side)
+      let usdToGhs = 12.5 // Default fallback
+      try {
+        const res = await fetch('/api/settings/fx-rates')
+        if (res.ok) {
+          const rates = await res.json()
+          // rates.GHS is GHS→USD rate, so USD→GHS is 1/rates.GHS
+          if (rates.GHS && rates.GHS > 0) {
+            usdToGhs = 1 / rates.GHS
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch FX rates:', e)
+      }
       
       // Calculate completed revenue using totalPayoutInBase (net payout in USD)
       // This matches the Revenue report calculation
